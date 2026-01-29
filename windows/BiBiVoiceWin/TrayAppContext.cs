@@ -72,6 +72,8 @@ public sealed class TrayAppContext : ApplicationContext
         _recorder = new AudioRecorder();
         _recorder.AutoStopRequested += reason =>
         {
+            // 按住说话期间不启用静音判停，避免中途停顿就被自动收尾。
+            if (_holdKeyDown && _holdTriggered) return;
             // 避免重复触发：只有从 0->reason 的第一次设置才生效。
             Interlocked.CompareExchange(ref _pendingAutoStopReason, (int)reason, 0);
         };
@@ -185,7 +187,7 @@ public sealed class TrayAppContext : ApplicationContext
         }
     }
 
-    private void StartRecording()
+    private void StartRecording(bool holdToTalkSession = false)
     {
         if (_state != AppState.Idle) return;
 
@@ -200,10 +202,15 @@ public sealed class TrayAppContext : ApplicationContext
 
         try
         {
+            var autoStopEnabled = _cfg.AutoStopEnabled && !holdToTalkSession;
+            if (!autoStopEnabled && _cfg.AutoStopEnabled && holdToTalkSession)
+            {
+                LogStatus("自动判停", "按住说话会忽略静音判停");
+            }
             var options = new RecorderOptions(
                 TargetSampleRate: _cfg.TargetSampleRate,
                 MaxRecordSeconds: _cfg.MaxRecordSeconds,
-                AutoStopEnabled: _cfg.AutoStopEnabled,
+                AutoStopEnabled: autoStopEnabled,
                 AutoStopSilenceMs: _cfg.AutoStopSilenceMs,
                 AutoStopThresholdDb: _cfg.AutoStopThresholdDb
             );
@@ -444,7 +451,7 @@ public sealed class TrayAppContext : ApplicationContext
             if (!_holdKeyDown || _holdTriggered) return;
             _holdTriggered = true;
             // 达到长按阈值 -> 开始录音
-            PostToUiAction(StartRecording);
+            PostToUiAction(() => StartRecording(holdToTalkSession: true));
         }, null, _holdMinMs, Timeout.Infinite);
     }
 
