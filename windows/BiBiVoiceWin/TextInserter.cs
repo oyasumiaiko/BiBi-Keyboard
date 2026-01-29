@@ -70,7 +70,7 @@ public sealed class TextInserter
         }
     }
 
-    private static async Task InsertByClipboardAsync(IntPtr targetWindow, string text, CancellationToken ct)
+    private static async Task<bool> InsertByClipboardAsync(IntPtr targetWindow, string text, CancellationToken ct)
     {
         // 注意：Clipboard API 需要在 STA 线程调用。此项目主线程是 WinForms STA。
         IDataObject? backup = null;
@@ -90,11 +90,16 @@ public sealed class TextInserter
         catch
         {
             // 如果连剪贴板也写不进去，那就只能放弃插入。
-            return;
+            AppLogger.Status("插入", "剪贴板写入失败");
+            return false;
         }
 
         Win32.TrySetForegroundWindow(targetWindow);
-        Win32.SendCtrlV();
+        var pasted = Win32.SendCtrlV();
+        if (!pasted)
+        {
+            AppLogger.Status("插入", "SendCtrlV 失败");
+        }
 
         // 给目标应用一点时间完成粘贴，再恢复剪贴板，尽量不打扰用户。
         try
@@ -106,7 +111,7 @@ public sealed class TextInserter
             // ignore
         }
 
-        if (backup is null) return;
+        if (backup is null) return pasted;
         try
         {
             Clipboard.SetDataObject(backup);
@@ -115,6 +120,8 @@ public sealed class TextInserter
         {
             // ignore
         }
+
+        return pasted;
     }
 
     /// <summary>
@@ -230,7 +237,11 @@ public sealed class TextInserter
             if (_owner._mode == InsertMode.Clipboard)
             {
                 // 强制走剪贴板粘贴，避免某些应用拦截 Unicode SendInput
-                await InsertByClipboardAsync(_targetWindow, text, ct).ConfigureAwait(true);
+                var ok = await InsertByClipboardAsync(_targetWindow, text, ct).ConfigureAwait(true);
+                if (!ok)
+                {
+                    LogInsert("剪贴板粘贴失败");
+                }
                 return;
             }
 
@@ -239,7 +250,11 @@ public sealed class TextInserter
             LogInsert($"SendInput 失败，尝试剪贴板（长度={text.Length}）");
             if (!allowClipboard) return;
 
-            await InsertByClipboardAsync(_targetWindow, text, ct).ConfigureAwait(true);
+            var ok2 = await InsertByClipboardAsync(_targetWindow, text, ct).ConfigureAwait(true);
+            if (!ok2)
+            {
+                LogInsert("剪贴板粘贴失败");
+            }
         }
 
         private void LogInsert(string message)

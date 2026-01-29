@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace BiBiVoiceWin;
 
@@ -25,6 +26,12 @@ internal static class Win32
     [DllImport("user32.dll")]
     public static extern IntPtr GetForegroundWindow();
 
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern int GetWindowTextLength(IntPtr hWnd);
+
     [DllImport("user32.dll")]
     public static extern bool SetForegroundWindow(IntPtr hWnd);
 
@@ -35,6 +42,17 @@ internal static class Win32
     {
         if (hWnd == IntPtr.Zero) return false;
         try { return SetForegroundWindow(hWnd); } catch { return false; }
+    }
+
+    public static string GetWindowTitle(IntPtr hWnd)
+    {
+        if (hWnd == IntPtr.Zero) return "";
+        var len = GetWindowTextLength(hWnd);
+        if (len <= 0) return "";
+        var sb = new StringBuilder(len + 2);
+        var read = GetWindowText(hWnd, sb, sb.Capacity);
+        if (read <= 0) return "";
+        return sb.ToString();
     }
 
     public static bool SendUnicodeText(string text)

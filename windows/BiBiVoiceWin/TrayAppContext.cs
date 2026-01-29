@@ -155,6 +155,8 @@ public sealed class TrayAppContext : ApplicationContext
         if (_state != AppState.Idle) return;
 
         _targetWindow = Win32.GetForegroundWindow();
+        var title = Win32.GetWindowTitle(_targetWindow);
+        LogStatus("目标窗口", $"0x{_targetWindow.ToInt64():X} {title}");
         _state = AppState.Recording;
 
         _toggleItem.Text = "停止";
