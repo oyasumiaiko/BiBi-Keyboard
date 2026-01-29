@@ -77,7 +77,12 @@ public sealed class AppConfig
                 AppKey = "",
                 AccessKey = "",
                 ResourceId = "volc.seedasr.sauc.duration",
-                EnableDdc = false
+                EnableDdc = true,
+                EnableNonstream = true,
+                EnableVad = false,
+                VadEndWindowSizeMs = 800,
+                VadForceToSpeechTimeMs = 1000,
+                Language = ""
             }
         };
     }
@@ -97,5 +102,10 @@ public sealed class VolcConfig
     public string AppKey { get; init; } = "";
     public string AccessKey { get; init; } = "";
     public string ResourceId { get; init; } = "volc.seedasr.sauc.duration";
-    public bool EnableDdc { get; init; } = false;
+    public bool EnableDdc { get; init; } = true;
+    public bool EnableNonstream { get; init; } = true;
+    public bool EnableVad { get; init; } = false;
+    public int VadEndWindowSizeMs { get; init; } = 800;
+    public int VadForceToSpeechTimeMs { get; init; } = 1000;
+    public string Language { get; init; } = "";
 }

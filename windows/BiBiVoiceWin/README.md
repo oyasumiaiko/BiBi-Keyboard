@@ -37,3 +37,5 @@
 - 托盘图标为动态提示：上半表示麦克风录音状态，下半表示流式传输状态。
 - `AutoStopEnabled=true` 时，检测到“说过话”后，持续静音达到 `AutoStopSilenceMs` 会自动停止并识别。
 - 日志输出默认写入 `%APPDATA%\\BiBiVoiceWin\\logs\\app.log`；从 PowerShell/CMD 启动时会自动附加到父控制台并输出同样内容。
+- 默认启用火山“语义顺滑”（`EnableDdc`）与“二遍识别”（`EnableNonstream`）以提升最终准确率；如需更原始结果可在配置中关闭。
+- 如需启用 VAD 判停分句，可设置 `EnableVad=true`，并使用推荐参数 `VadEndWindowSizeMs=800`、`VadForceToSpeechTimeMs=1000`。

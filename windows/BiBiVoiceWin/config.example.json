@@ -15,6 +15,11 @@
     "AppKey": "",
     "AccessKey": "",
     "ResourceId": "volc.seedasr.sauc.duration",
-    "EnableDdc": false
+    "EnableDdc": true,
+    "EnableNonstream": true,
+    "EnableVad": false,
+    "VadEndWindowSizeMs": 800,
+    "VadForceToSpeechTimeMs": 1000,
+    "Language": ""
   }
 }

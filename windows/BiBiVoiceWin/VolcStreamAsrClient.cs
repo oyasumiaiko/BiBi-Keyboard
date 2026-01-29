@@ -83,7 +83,7 @@ public sealed class VolcStreamAsrClient
         AppLogger.Status("WebSocket", "连接成功");
 
         // 1) 发送“完整请求”
-        var fullJson = BuildFullClientRequestJson(_cfg.AppKey, sampleRate, _cfg.EnableDdc);
+        var fullJson = BuildFullClientRequestJson(_cfg.AppKey, sampleRate, _cfg);
         var fullPayload = Gzip(Encoding.UTF8.GetBytes(fullJson));
         await SendFrameAsync(
             ws,
@@ -149,7 +149,7 @@ public sealed class VolcStreamAsrClient
         AppLogger.Status("WebSocket", "连接成功");
 
         // 1) 发送“完整请求”
-        var fullJson = BuildFullClientRequestJson(_cfg.AppKey, sampleRate, _cfg.EnableDdc);
+        var fullJson = BuildFullClientRequestJson(_cfg.AppKey, sampleRate, _cfg);
         var fullPayload = Gzip(Encoding.UTF8.GetBytes(fullJson));
         await SendFrameAsync(
             ws,
@@ -480,9 +480,12 @@ public sealed class VolcStreamAsrClient
     /// <summary>
     /// 构建“完整请求”JSON（尽量保持纯函数，便于排查与复用）。
     /// </summary>
-    public static string BuildFullClientRequestJson(string uid, int sampleRate, bool enableDdc)
+    public static string BuildFullClientRequestJson(string uid, int sampleRate, VolcConfig cfg)
     {
         var rate = sampleRate <= 0 ? 16000 : sampleRate;
+        var language = cfg.Language?.Trim();
+        var vadEndWindow = cfg.VadEndWindowSizeMs <= 0 ? 800 : cfg.VadEndWindowSizeMs;
+        var vadForceToSpeech = cfg.VadForceToSpeechTimeMs <= 0 ? 1000 : cfg.VadForceToSpeechTimeMs;
         var root = new Dictionary<string, object?>
         {
             ["user"] = new Dictionary<string, object?>
@@ -502,9 +505,31 @@ public sealed class VolcStreamAsrClient
                 ["model_name"] = "bigmodel",
                 ["enable_itn"] = true,
                 ["enable_punc"] = true,
-                ["enable_ddc"] = enableDdc
+                // 语义顺滑（去口头禅/重复等），与 Android 端默认保持一致
+                ["enable_ddc"] = cfg.EnableDdc
             }
         };
+
+        var audio = (Dictionary<string, object?>)root["audio"]!;
+        if (!string.IsNullOrWhiteSpace(language))
+        {
+            audio["language"] = language;
+        }
+
+        var request = (Dictionary<string, object?>)root["request"]!;
+        if (cfg.EnableNonstream)
+        {
+            // 二遍识别（nostream 重识别提升最终准确度）
+            request["enable_nonstream"] = true;
+        }
+
+        if (cfg.EnableVad)
+        {
+            // VAD 判停与分句（官方推荐实时性较好数值）
+            request["show_utterances"] = true;
+            request["end_window_size"] = vadEndWindow;
+            request["force_to_speech_time"] = vadForceToSpeech;
+        }
 
         return JsonSerializer.Serialize(root);
     }
