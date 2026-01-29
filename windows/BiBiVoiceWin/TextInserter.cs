@@ -122,7 +122,7 @@ public sealed class TextInserter
     public sealed class StreamingSession
     {
         private readonly TextInserter _owner;
-        private readonly IntPtr _targetWindow;
+        private IntPtr _targetWindow;
         private readonly SemaphoreSlim _gate = new(1, 1);
         private string _lastText = "";
         private bool _finalized;
@@ -132,6 +132,8 @@ public sealed class TextInserter
             _owner = owner;
             _targetWindow = targetWindow;
         }
+
+        public bool IsFinalized => _finalized;
 
         public Task ApplyPartialAsync(string text, CancellationToken ct)
         {
@@ -171,6 +173,14 @@ public sealed class TextInserter
                         _finalized = true;
                     }
                     return;
+                }
+
+                var currentWindow = Win32.GetForegroundWindow();
+                if (currentWindow != IntPtr.Zero && currentWindow != _targetWindow)
+                {
+                    // 用户切换了输入目标：避免在新窗口回退删除旧内容
+                    _targetWindow = currentWindow;
+                    _lastText = "";
                 }
 
                 Win32.TrySetForegroundWindow(_targetWindow);

@@ -44,6 +44,8 @@ public sealed class TrayAppContext : ApplicationContext
 
     // 录音线程触发的“建议停止”信号，通过 UI Timer 拉回到 UI 线程执行。
     private int _pendingAutoStopReason = 0;
+    private bool _pcmChunkLogged;
+    private bool _partialLogged;
 
     public TrayAppContext()
     {
@@ -119,6 +121,7 @@ public sealed class TrayAppContext : ApplicationContext
         }
 
         LogStatus("BiBiVoiceWin 已启动", $"热键：{_cfg.Hotkey} 配置：{_configPath}");
+        LogStatus("日志路径", AppLogger.LogPath);
 
         if (created)
         {
@@ -214,6 +217,10 @@ public sealed class TrayAppContext : ApplicationContext
                     await _streamSession.ApplyFinalAsync(finalText, token).ConfigureAwait(true);
                 });
             }
+            else
+            {
+                LogStatus("识别完成", "最终结果为空");
+            }
         }
         catch (OperationCanceledException)
         {
@@ -245,6 +252,9 @@ public sealed class TrayAppContext : ApplicationContext
             SingleWriter = true
         });
         _streamSession = _inserter.StartStreamingSession(_targetWindow);
+        _pcmChunkLogged = false;
+        _partialLogged = false;
+        LogStatus("流式会话启动", $"Endpoint: {_cfg.Volc.Endpoint} ResourceId: {_cfg.Volc.ResourceId}");
         _asrTask = _asr.TranscribeStreamingAsync(_pcmChannel.Reader, targetSampleRate, OnAsrResult, _streamCts.Token);
     }
 
@@ -274,6 +284,7 @@ public sealed class TrayAppContext : ApplicationContext
         var done = await Task.WhenAny(_asrTask, Task.Delay(15000, ct)).ConfigureAwait(false);
         if (done != _asrTask)
         {
+            LogStatus("识别超时", "15 秒内未收到最终结果");
             CancelStreamingSession();
             return "";
         }
@@ -285,11 +296,25 @@ public sealed class TrayAppContext : ApplicationContext
         if (_state != AppState.Recording) return;
         var writer = _pcmChannel?.Writer;
         if (writer is null) return;
+        if (!_pcmChunkLogged)
+        {
+            _pcmChunkLogged = true;
+            LogStatus("音频流", "已开始接收 PCM 分片");
+        }
         writer.TryWrite(chunk);
     }
 
     private void OnAsrResult(string text, bool isFinal)
     {
+        if (isFinal)
+        {
+            LogStatus("识别完成", $"最终文本长度 {text.Length}");
+        }
+        else if (!_partialLogged)
+        {
+            _partialLogged = true;
+            LogStatus("识别流", $"收到首个片段，长度 {text.Length}");
+        }
         PostToUi(async token =>
         {
             if (_streamSession is null) return;
@@ -338,7 +363,7 @@ public sealed class TrayAppContext : ApplicationContext
 
     private void LogStatus(string title, string text)
     {
-        try { Debug.WriteLine($"[{title}] {text}"); } catch { }
+        AppLogger.Status(title, text);
     }
 
     private void Exit()
