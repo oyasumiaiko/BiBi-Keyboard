@@ -1,6 +1,6 @@
 {
   "Hotkey": "Alt+Space",
-  "InsertMode": "Clipboard",
+  "InsertMode": "SendInput",
   "AppendSpace": false,
   "HoldToTalkEnabled": true,
   "HoldToTalkKey": "Space",

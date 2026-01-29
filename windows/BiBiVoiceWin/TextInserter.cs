@@ -11,7 +11,7 @@ public enum InsertMode
 
 public static class InsertModeParser
 {
-    public static InsertMode ParseOrDefault(string? text, InsertMode defaultMode = InsertMode.Clipboard)
+    public static InsertMode ParseOrDefault(string? text, InsertMode defaultMode = InsertMode.SendInput)
     {
         if (string.IsNullOrWhiteSpace(text)) return defaultMode;
         return text.Trim().ToLowerInvariant() switch
@@ -57,8 +57,7 @@ public sealed class TextInserter
             case InsertMode.SendInput:
                 if (!Win32.SendUnicodeText(finalText))
                 {
-                    // 某些应用可能对 SendInput 兼容性差；这里提供“软降级”：
-                    await InsertByClipboardAsync(targetWindow, finalText, ct);
+                    AppLogger.Status("插入", $"SendInput 失败 (err={Win32.LastSendInputError})");
                 }
                 break;
             case InsertMode.Clipboard:
@@ -156,7 +155,6 @@ public sealed class TextInserter
         private string _lastText = "";
         private bool _finalized;
         private int _insertLogBudget = InsertLogBudget;
-        private bool _forceClipboard;
 
         public StreamingSession(TextInserter owner, IntPtr targetWindow)
         {
@@ -228,7 +226,7 @@ public sealed class TextInserter
                 var append = normalized.Substring(common);
                 if (!string.IsNullOrEmpty(append))
                 {
-                    await InsertTextAsync(append, allowClipboard: isFinal, ct).ConfigureAwait(true);
+                    await InsertTextAsync(append, ct).ConfigureAwait(true);
                 }
 
                 _lastText = normalized;
@@ -248,14 +246,14 @@ public sealed class TextInserter
         private async Task AppendSpaceIfNeededAsync(CancellationToken ct)
         {
             if (!_owner._appendSpace) return;
-            await InsertTextAsync(" ", allowClipboard: true, ct).ConfigureAwait(true);
+            await InsertTextAsync(" ", ct).ConfigureAwait(true);
         }
 
-        private async Task InsertTextAsync(string text, bool allowClipboard, CancellationToken ct)
+        private async Task InsertTextAsync(string text, CancellationToken ct)
         {
             if (string.IsNullOrEmpty(text)) return;
 
-            if (_owner._mode == InsertMode.Clipboard || _forceClipboard)
+            if (_owner._mode == InsertMode.Clipboard)
             {
                 // 强制走剪贴板粘贴，避免某些应用拦截 Unicode SendInput
                 var ok = await InsertByClipboardAsync(_targetWindow, text, ct).ConfigureAwait(true);
@@ -268,19 +266,7 @@ public sealed class TextInserter
 
             // 流式时优先使用 SendInput，避免频繁污染剪贴板。
             if (Win32.SendUnicodeText(text)) return;
-            LogInsert($"SendInput 失败，尝试剪贴板（长度={text.Length}，err={Win32.LastSendInputError}）");
-
-            // SendInput 失败一次就切到剪贴板，保证流式有输出。
-            _forceClipboard = true;
-            if (!allowClipboard && _owner._mode == InsertMode.SendInput)
-            {
-                // 即便是 partial 也尝试剪贴板一次，避免“完全无输出”的体验。
-                allowClipboard = true;
-            }
-
-            if (!allowClipboard) return;
-            var ok2 = await InsertByClipboardAsync(_targetWindow, text, ct).ConfigureAwait(true);
-            if (!ok2) LogInsert("剪贴板粘贴失败");
+            LogInsert($"SendInput 失败（长度={text.Length}，err={Win32.LastSendInputError}）");
         }
 
         private void LogInsert(string message)

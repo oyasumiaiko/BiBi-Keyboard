@@ -33,7 +33,7 @@
 - 默认使用火山引擎 WebSocket 流式 `bigmodel_async`（与 Android 端 `VolcStreamAsrEngine` 相同协议）。
 - 识别过程中会实时把内容插入到当前输入框，停止热键用于“收尾并等待最终结果”。
 - 默认启用“按住说话”：长按 `Space` 开始识别并流式输入，松开停止并收尾；短按空格仍会输入空格。
-- 文本插入默认使用 `Clipboard`（通过 `Ctrl+V` 粘贴），兼容性更好；如需纯键盘输入可改为 `SendInput`。
+- 文本插入默认使用 `SendInput`（纯键盘输入，不走剪贴板）；如需兼容性更好可改为 `Clipboard`。
 - 托盘图标为动态提示：上半表示麦克风录音状态，下半表示流式传输状态。
 - `AutoStopEnabled=true` 时，检测到“说过话”后，持续静音达到 `AutoStopSilenceMs` 会自动停止并识别。
 - 日志输出默认写入 `%APPDATA%\\BiBiVoiceWin\\logs\\app.log`；从 PowerShell/CMD 启动时会自动附加到父控制台并输出同样内容。
