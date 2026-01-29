@@ -8,11 +8,10 @@
   "AutoStopSilenceMs": 1200,
   "AutoStopThresholdDb": -35,
   "Volc": {
-    "Endpoint": "https://openspeech.bytedance.com/api/v3/auc/bigmodel/recognize/flash",
+    "Endpoint": "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async",
     "AppKey": "",
     "AccessKey": "",
-    "ResourceId": "volc.bigasr.auc_turbo",
+    "ResourceId": "volc.seedasr.sauc.duration",
     "EnableDdc": false
   }
 }
-

@@ -13,7 +13,8 @@
    - 方式 A（推荐）：将 `config.example.json` 复制为 `config.json`
    - 方式 B：直接运行一次程序，程序会在 `%APPDATA%\\BiBiVoiceWin\\config.json` 自动生成配置文件
 
-   然后填写 `Volc.AppKey` 与 `Volc.AccessKey`（对应 Android 端火山引擎配置）。
+   然后填写 `Volc.AppKey`（App ID）与 `Volc.AccessKey`（Access Token）。
+   如已开通「豆包流式语音识别 2.0（小时版）」服务，`ResourceId` 通常为 `volc.seedasr.sauc.duration`，`Endpoint` 默认已指向 `bigmodel_async`。
 
 3. 运行：
 
@@ -29,6 +30,7 @@
 
 ## 说明
 
-- 默认使用火山引擎 `recognize/flash`（与 Android 端 `VolcFileAsrEngine` 相同 API 形态）。
+- 默认使用火山引擎 WebSocket 流式 `bigmodel_async`（与 Android 端 `VolcStreamAsrEngine` 相同协议）。
+- 目前仍是“录完再识别”的交互，但底层已切换为流式协议，以满足流式资源权限。
 - 文本插入默认使用 `SendInput` 发送 Unicode 键盘事件；如遇到个别应用兼容性问题，可在 `config.json` 中把 `InsertMode` 切换为 `Clipboard`（通过 `Ctrl+V` 粘贴）。
 - `AutoStopEnabled=true` 时，检测到“说过话”后，持续静音达到 `AutoStopSilenceMs` 会自动停止并识别。

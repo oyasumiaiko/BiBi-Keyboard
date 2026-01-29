@@ -29,7 +29,7 @@ public sealed class TrayAppContext : ApplicationContext
     private readonly string _configPath;
     private readonly HotkeyManager? _hotkey;
     private readonly AudioRecorder _recorder;
-    private readonly VolcFlashAsrClient _asr;
+    private readonly VolcStreamAsrClient _asr;
     private readonly TextInserter _inserter;
 
     private AppState _state = AppState.Idle;
@@ -52,7 +52,7 @@ public sealed class TrayAppContext : ApplicationContext
             Interlocked.CompareExchange(ref _pendingAutoStopReason, (int)reason, 0);
         };
 
-        _asr = new VolcFlashAsrClient(_cfg.Volc);
+        _asr = new VolcStreamAsrClient(_cfg.Volc);
         _inserter = new TextInserter(InsertModeParser.ParseOrDefault(_cfg.InsertMode), _cfg.AppendSpace);
 
         _toggleItem = new ToolStripMenuItem("开始录音");
@@ -118,7 +118,7 @@ public sealed class TrayAppContext : ApplicationContext
 
         if (created)
         {
-            ShowBalloon("已生成 config.json", "请先填写火山引擎 AppKey / AccessKey", ToolTipIcon.Warning);
+            ShowBalloon("已生成 config.json", "请先填写火山引擎 App ID / Access Token", ToolTipIcon.Warning);
         }
     }
 
@@ -199,7 +199,7 @@ public sealed class TrayAppContext : ApplicationContext
             };
             ShowBalloon("开始识别", $"正在调用火山 ASR…{reasonText}", ToolTipIcon.Info);
 
-            var text = await _asr.TranscribeAsync(audio.WavBytes, ct);
+            var text = await _asr.TranscribeAsync(audio.Pcm16Bytes, audio.SampleRate, ct);
             ShowBalloon("识别完成", text.Length > 80 ? (text[..80] + "…") : text, ToolTipIcon.Info);
 
             await _inserter.InsertAsync(_targetWindow, text, ct);
@@ -265,4 +265,3 @@ public sealed class TrayAppContext : ApplicationContext
         ExitThread();
     }
 }
-

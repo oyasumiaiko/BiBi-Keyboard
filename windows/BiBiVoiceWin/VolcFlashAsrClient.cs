@@ -28,7 +28,7 @@ public sealed class VolcFlashAsrClient
         }
         if (string.IsNullOrWhiteSpace(_cfg.AppKey) || string.IsNullOrWhiteSpace(_cfg.AccessKey))
         {
-            throw new InvalidOperationException("请先在 config.json 中填写 Volc.AppKey 与 Volc.AccessKey");
+            throw new InvalidOperationException("请先在 config.json 中填写 Volc.AppKey（App ID）与 Volc.AccessKey（Access Token）");
         }
         if (string.IsNullOrWhiteSpace(_cfg.ResourceId))
         {
@@ -115,4 +115,3 @@ public sealed class VolcFlashAsrClient
         }
     }
 }
-

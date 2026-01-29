@@ -66,10 +66,10 @@ public sealed class AppConfig
             AutoStopThresholdDb = -35,
             Volc = new VolcConfig
             {
-                Endpoint = "https://openspeech.bytedance.com/api/v3/auc/bigmodel/recognize/flash",
+                Endpoint = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async",
                 AppKey = "",
                 AccessKey = "",
-                ResourceId = "volc.bigasr.auc_turbo",
+                ResourceId = "volc.seedasr.sauc.duration",
                 EnableDdc = false
             }
         };
@@ -86,10 +86,9 @@ public sealed class AppConfig
 
 public sealed class VolcConfig
 {
-    public string Endpoint { get; init; } = "https://openspeech.bytedance.com/api/v3/auc/bigmodel/recognize/flash";
+    public string Endpoint { get; init; } = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async";
     public string AppKey { get; init; } = "";
     public string AccessKey { get; init; } = "";
-    public string ResourceId { get; init; } = "volc.bigasr.auc_turbo";
+    public string ResourceId { get; init; } = "volc.seedasr.sauc.duration";
     public bool EnableDdc { get; init; } = false;
 }
-

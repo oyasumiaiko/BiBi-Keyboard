@@ -18,7 +18,12 @@ public sealed record RecorderOptions(
     double AutoStopThresholdDb
 );
 
-public sealed record RecordedAudio(byte[] WavBytes, int SampleRate, TimeSpan Duration);
+/// <summary>
+/// 录音结果：
+/// - Pcm16Bytes：16-bit PCM / 单声道 / 目标采样率（用于流式识别）
+/// - WavBytes：封装后的 WAV（用于文件识别或调试）
+/// </summary>
+public sealed record RecordedAudio(byte[] Pcm16Bytes, byte[] WavBytes, int SampleRate, TimeSpan Duration);
 
 /// <summary>
 /// 麦克风录音器：
@@ -103,7 +108,7 @@ public sealed class AudioRecorder : IDisposable
         var wav = WavUtils.Pcm16ToWav(pcm16, targetRate, channels: 1);
 
         CleanupCapture();
-        return new RecordedAudio(wav, targetRate, duration);
+        return new RecordedAudio(pcm16, wav, targetRate, duration);
     }
 
     private void OnDataAvailable(object? sender, WaveInEventArgs e)
