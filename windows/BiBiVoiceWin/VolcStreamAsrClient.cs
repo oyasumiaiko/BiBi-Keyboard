@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Channels;
 
 namespace BiBiVoiceWin;
 
@@ -99,6 +100,136 @@ public sealed class VolcStreamAsrClient
         }
 
         return text.Trim();
+    }
+
+    /// <summary>
+    /// 流式识别：边收音频边解析结果，onResult 会收到 partial/final。
+    /// </summary>
+    public async Task<string> TranscribeStreamingAsync(
+        ChannelReader<byte[]> audioReader,
+        int sampleRate,
+        Action<string, bool> onResult,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(_cfg.Endpoint))
+        {
+            throw new InvalidOperationException("Volc.Endpoint 为空");
+        }
+        if (!_cfg.Endpoint.StartsWith("ws", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Volc.Endpoint 必须是 wss://... 的流式地址");
+        }
+        if (string.IsNullOrWhiteSpace(_cfg.AppKey) || string.IsNullOrWhiteSpace(_cfg.AccessKey))
+        {
+            throw new InvalidOperationException("请先在 config.json 中填写 Volc.AppKey（App ID）与 Volc.AccessKey（Access Token）");
+        }
+        if (string.IsNullOrWhiteSpace(_cfg.ResourceId))
+        {
+            throw new InvalidOperationException("Volc.ResourceId 为空");
+        }
+
+        using var ws = new ClientWebSocket();
+        ws.Options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+        ws.Options.SetRequestHeader("X-Api-App-Key", _cfg.AppKey);
+        ws.Options.SetRequestHeader("X-Api-Access-Key", _cfg.AccessKey);
+        ws.Options.SetRequestHeader("X-Api-Resource-Id", _cfg.ResourceId);
+        ws.Options.SetRequestHeader("X-Api-Connect-Id", Guid.NewGuid().ToString());
+
+        await ws.ConnectAsync(new Uri(_cfg.Endpoint), ct).ConfigureAwait(false);
+
+        // 1) 发送“完整请求”
+        var fullJson = BuildFullClientRequestJson(_cfg.AppKey, sampleRate, _cfg.EnableDdc);
+        var fullPayload = Gzip(Encoding.UTF8.GetBytes(fullJson));
+        await SendFrameAsync(
+            ws,
+            messageType: MsgTypeFullClientReq,
+            flags: 0,
+            serialization: SerializeJson,
+            compression: CompressGzip,
+            payload: fullPayload,
+            ct
+        ).ConfigureAwait(false);
+
+        // 2) 并行发送音频帧
+        var sendTask = Task.Run(async () =>
+        {
+            await foreach (var chunk in audioReader.ReadAllAsync(ct).ConfigureAwait(false))
+            {
+                await SendFrameAsync(
+                    ws,
+                    messageType: MsgTypeAudioOnlyClientReq,
+                    flags: 0,
+                    serialization: SerializeNone,
+                    compression: CompressGzip,
+                    payload: Gzip(chunk),
+                    ct
+                ).ConfigureAwait(false);
+            }
+
+            // 结束标记：发送最后一包（空载荷）
+            await SendFrameAsync(
+                ws,
+                messageType: MsgTypeAudioOnlyClientReq,
+                flags: FlagAudioLast,
+                serialization: SerializeNone,
+                compression: CompressGzip,
+                payload: Gzip(Array.Empty<byte>()),
+                ct
+            ).ConfigureAwait(false);
+        }, ct);
+
+        // 3) 接收并解析结果
+        string? finalText = null;
+        try
+        {
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeoutCts.CancelAfter(_receiveTimeout);
+
+            while (ws.State == WebSocketState.Open || ws.State == WebSocketState.CloseReceived)
+            {
+                var msg = await ReceiveMessageAsync(ws, timeoutCts.Token).ConfigureAwait(false);
+                if (msg is null) break;
+
+                if (!TryParseServerMessage(msg, out var text, out var isFinal, out var error))
+                {
+                    continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(error))
+                {
+                    throw new InvalidOperationException(error);
+                }
+
+                if (!string.IsNullOrWhiteSpace(text) || isFinal)
+                {
+                    try { onResult(text ?? "", isFinal); } catch { }
+                }
+
+                if (isFinal)
+                {
+                    finalText = text ?? "";
+                    break;
+                }
+            }
+        }
+        finally
+        {
+            try { await sendTask.ConfigureAwait(false); } catch { }
+            try
+            {
+                if (ws.State == WebSocketState.Open)
+                {
+                    await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "final", CancellationToken.None)
+                        .ConfigureAwait(false);
+                }
+            }
+            catch
+            {
+                // 忽略关闭失败，避免影响最终结果返回
+            }
+        }
+
+        return finalText ?? "";
     }
 
     private static async Task SendAudioFramesAsync(ClientWebSocket ws, byte[] pcm16, int sampleRate, CancellationToken ct)

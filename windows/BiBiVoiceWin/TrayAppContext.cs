@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Drawing;
 using System.Threading;
+using System.Threading.Channels;
 using System.Windows.Forms;
 
 namespace BiBiVoiceWin;
@@ -24,6 +25,7 @@ public sealed class TrayAppContext : ApplicationContext
     private readonly ContextMenuStrip _menu;
     private readonly ToolStripMenuItem _toggleItem;
     private readonly System.Windows.Forms.Timer _uiTimer;
+    private readonly SynchronizationContext _uiContext;
 
     private readonly AppConfig _cfg;
     private readonly string _configPath;
@@ -35,12 +37,17 @@ public sealed class TrayAppContext : ApplicationContext
     private AppState _state = AppState.Idle;
     private IntPtr _targetWindow = IntPtr.Zero;
     private CancellationTokenSource? _workCts;
+    private CancellationTokenSource? _streamCts;
+    private Channel<byte[]>? _pcmChannel;
+    private Task<string>? _asrTask;
+    private TextInserter.StreamingSession? _streamSession;
 
     // 录音线程触发的“建议停止”信号，通过 UI Timer 拉回到 UI 线程执行。
     private int _pendingAutoStopReason = 0;
 
     public TrayAppContext()
     {
+        _uiContext = SynchronizationContext.Current ?? new SynchronizationContext();
         var (cfg, configPath, created) = AppConfig.LoadOrCreate();
         _cfg = cfg;
         _configPath = configPath;
@@ -51,6 +58,7 @@ public sealed class TrayAppContext : ApplicationContext
             // 避免重复触发：只有从 0->reason 的第一次设置才生效。
             Interlocked.CompareExchange(ref _pendingAutoStopReason, (int)reason, 0);
         };
+        _recorder.Pcm16ChunkAvailable += OnPcm16Chunk;
 
         _asr = new VolcStreamAsrClient(_cfg.Volc);
         _inserter = new TextInserter(InsertModeParser.ParseOrDefault(_cfg.InsertMode), _cfg.AppendSpace);
@@ -88,7 +96,7 @@ public sealed class TrayAppContext : ApplicationContext
         {
             var reason = Interlocked.Exchange(ref _pendingAutoStopReason, 0);
             if (reason == 0) return;
-            await BeginStopAndTranscribeAsync((AutoStopReason)reason);
+            await BeginStopAndFinalizeAsync((AutoStopReason)reason);
         };
         _uiTimer.Start();
 
@@ -102,23 +110,19 @@ public sealed class TrayAppContext : ApplicationContext
             }
             catch (Exception ex)
             {
-                ShowBalloon("热键注册失败", ex.Message, ToolTipIcon.Error);
+                LogStatus("热键注册失败", ex.Message);
             }
         }
         else
         {
-            ShowBalloon("热键配置错误", err, ToolTipIcon.Warning);
+            LogStatus("热键配置错误", err);
         }
 
-        ShowBalloon(
-            "BiBiVoiceWin 已启动",
-            $"热键：{_cfg.Hotkey}\n配置：{_configPath}",
-            created ? ToolTipIcon.Warning : ToolTipIcon.Info
-        );
+        LogStatus("BiBiVoiceWin 已启动", $"热键：{_cfg.Hotkey} 配置：{_configPath}");
 
         if (created)
         {
-            ShowBalloon("已生成 config.json", "请先填写火山引擎 App ID / Access Token", ToolTipIcon.Warning);
+            LogStatus("已生成 config.json", "请先填写火山引擎 App ID / Access Token");
         }
     }
 
@@ -130,10 +134,10 @@ public sealed class TrayAppContext : ApplicationContext
                 StartRecording();
                 break;
             case AppState.Recording:
-                await BeginStopAndTranscribeAsync(null);
+                await BeginStopAndFinalizeAsync(null);
                 break;
             case AppState.Transcribing:
-                ShowBalloon("正在识别", "请稍候…", ToolTipIcon.Info);
+                LogStatus("正在识别", "请稍候…");
                 break;
         }
     }
@@ -145,9 +149,8 @@ public sealed class TrayAppContext : ApplicationContext
         _targetWindow = Win32.GetForegroundWindow();
         _state = AppState.Recording;
 
-        _toggleItem.Text = "停止并识别";
+        _toggleItem.Text = "停止";
         _tray.Text = "BiBiVoiceWin - 录音中";
-        ShowBalloon("开始录音", "再次触发热键停止并识别", ToolTipIcon.Info);
 
         try
         {
@@ -158,6 +161,7 @@ public sealed class TrayAppContext : ApplicationContext
                 AutoStopSilenceMs: _cfg.AutoStopSilenceMs,
                 AutoStopThresholdDb: _cfg.AutoStopThresholdDb
             );
+            StartStreamingSession(options.TargetSampleRate);
             _recorder.Start(options);
         }
         catch (Exception ex)
@@ -165,17 +169,17 @@ public sealed class TrayAppContext : ApplicationContext
             _state = AppState.Idle;
             _toggleItem.Text = "开始录音";
             _tray.Text = "BiBiVoiceWin";
-            ShowBalloon("启动录音失败", ex.Message, ToolTipIcon.Error);
+            LogStatus("启动录音失败", ex.Message);
         }
     }
 
-    private async Task BeginStopAndTranscribeAsync(AutoStopReason? reason)
+    private async Task BeginStopAndFinalizeAsync(AutoStopReason? reason)
     {
         if (_state != AppState.Recording) return;
 
         _state = AppState.Transcribing;
-        _toggleItem.Text = "识别中…";
-        _tray.Text = "BiBiVoiceWin - 识别中";
+        _toggleItem.Text = "收尾中…";
+        _tray.Text = "BiBiVoiceWin - 收尾中";
 
         _workCts?.Cancel();
         _workCts?.Dispose();
@@ -185,9 +189,11 @@ public sealed class TrayAppContext : ApplicationContext
         try
         {
             var audio = await _recorder.StopAsync(ct);
+            CompleteAudioStream();
+
             if (audio.WavBytes.Length < 2000)
             {
-                ShowBalloon("录音太短", "没有采集到有效音频", ToolTipIcon.Warning);
+                CancelStreamingSession();
                 return;
             }
 
@@ -197,27 +203,114 @@ public sealed class TrayAppContext : ApplicationContext
                 AutoStopReason.MaxDuration => "（达到最大时长自动停止）",
                 _ => ""
             };
-            ShowBalloon("开始识别", $"正在调用火山 ASR…{reasonText}", ToolTipIcon.Info);
+            LogStatus("识别中", $"火山流式收尾 {reasonText}");
 
-            var text = await _asr.TranscribeAsync(audio.Pcm16Bytes, audio.SampleRate, ct);
-            ShowBalloon("识别完成", text.Length > 80 ? (text[..80] + "…") : text, ToolTipIcon.Info);
-
-            await _inserter.InsertAsync(_targetWindow, text, ct);
+            var finalText = await AwaitFinalResultAsync(ct);
+            if (!string.IsNullOrWhiteSpace(finalText))
+            {
+                PostToUi(async token =>
+                {
+                    if (_streamSession is null) return;
+                    await _streamSession.ApplyFinalAsync(finalText, token).ConfigureAwait(true);
+                });
+            }
         }
         catch (OperationCanceledException)
         {
-            ShowBalloon("已取消", "当前识别任务已取消", ToolTipIcon.Info);
+            CancelStreamingSession();
         }
         catch (Exception ex)
         {
-            ShowBalloon("识别失败", ex.Message, ToolTipIcon.Error);
+            CancelStreamingSession();
+            LogStatus("识别失败", ex.Message);
         }
         finally
         {
+            CleanupStreamingSession();
             _state = AppState.Idle;
             _toggleItem.Text = "开始录音";
             _tray.Text = "BiBiVoiceWin";
         }
+    }
+
+    private void StartStreamingSession(int targetSampleRate)
+    {
+        CancelStreamingSession();
+        CleanupStreamingSession();
+
+        _streamCts = new CancellationTokenSource();
+        _pcmChannel = Channel.CreateUnbounded<byte[]>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = true
+        });
+        _streamSession = _inserter.StartStreamingSession(_targetWindow);
+        _asrTask = _asr.TranscribeStreamingAsync(_pcmChannel.Reader, targetSampleRate, OnAsrResult, _streamCts.Token);
+    }
+
+    private void CompleteAudioStream()
+    {
+        try { _pcmChannel?.Writer.TryComplete(); } catch { }
+    }
+
+    private void CancelStreamingSession()
+    {
+        try { _streamCts?.Cancel(); } catch { }
+        try { _pcmChannel?.Writer.TryComplete(); } catch { }
+    }
+
+    private void CleanupStreamingSession()
+    {
+        _pcmChannel = null;
+        _streamSession = null;
+        _asrTask = null;
+        _streamCts?.Dispose();
+        _streamCts = null;
+    }
+
+    private async Task<string> AwaitFinalResultAsync(CancellationToken ct)
+    {
+        if (_asrTask is null) return "";
+        var done = await Task.WhenAny(_asrTask, Task.Delay(15000, ct)).ConfigureAwait(false);
+        if (done != _asrTask)
+        {
+            CancelStreamingSession();
+            return "";
+        }
+        return await _asrTask.ConfigureAwait(false);
+    }
+
+    private void OnPcm16Chunk(byte[] chunk)
+    {
+        if (_state != AppState.Recording) return;
+        var writer = _pcmChannel?.Writer;
+        if (writer is null) return;
+        writer.TryWrite(chunk);
+    }
+
+    private void OnAsrResult(string text, bool isFinal)
+    {
+        PostToUi(async token =>
+        {
+            if (_streamSession is null) return;
+            if (isFinal)
+            {
+                await _streamSession.ApplyFinalAsync(text, token).ConfigureAwait(true);
+            }
+            else
+            {
+                await _streamSession.ApplyPartialAsync(text, token).ConfigureAwait(true);
+            }
+        });
+    }
+
+    private void PostToUi(Func<CancellationToken, Task> action)
+    {
+        var token = _streamCts?.Token ?? CancellationToken.None;
+        _uiContext.Post(async _ =>
+        {
+            try { await action(token).ConfigureAwait(true); } catch { }
+        }, null);
     }
 
     private void OpenConfigFile()
@@ -233,20 +326,19 @@ public sealed class TrayAppContext : ApplicationContext
         }
         catch (Exception ex)
         {
-            ShowBalloon("打开配置失败", ex.Message, ToolTipIcon.Error);
+            LogStatus("打开配置失败", ex.Message);
         }
     }
 
     private void ShowBalloon(string title, string text, ToolTipIcon icon)
     {
-        try
-        {
-            _tray.ShowBalloonTip(1500, title, text, icon);
-        }
-        catch
-        {
-            // ignore
-        }
+        // 已禁用气泡提示（用户不希望使用系统通知）。
+        LogStatus(title, text);
+    }
+
+    private void LogStatus(string title, string text)
+    {
+        try { Debug.WriteLine($"[{title}] {text}"); } catch { }
     }
 
     private void Exit()

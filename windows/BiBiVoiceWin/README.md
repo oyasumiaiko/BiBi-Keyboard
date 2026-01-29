@@ -31,6 +31,6 @@
 ## 说明
 
 - 默认使用火山引擎 WebSocket 流式 `bigmodel_async`（与 Android 端 `VolcStreamAsrEngine` 相同协议）。
-- 目前仍是“录完再识别”的交互，但底层已切换为流式协议，以满足流式资源权限。
+- 识别过程中会实时把内容插入到当前输入框，停止热键用于“收尾并等待最终结果”。
 - 文本插入默认使用 `SendInput` 发送 Unicode 键盘事件；如遇到个别应用兼容性问题，可在 `config.json` 中把 `InsertMode` 切换为 `Clipboard`（通过 `Ctrl+V` 粘贴）。
 - `AutoStopEnabled=true` 时，检测到“说过话”后，持续静音达到 `AutoStopSilenceMs` 会自动停止并识别。

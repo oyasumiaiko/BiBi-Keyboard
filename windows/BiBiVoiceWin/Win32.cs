@@ -68,6 +68,20 @@ internal static class Win32
         return sent == inputs.Length;
     }
 
+    public static bool SendBackspace(int count)
+    {
+        if (count <= 0) return true;
+        var inputs = new INPUT[count * 2];
+        var i = 0;
+        for (var n = 0; n < count; n++)
+        {
+            inputs[i++] = INPUT.KeyboardVk(0x08, keyUp: false); // VK_BACK
+            inputs[i++] = INPUT.KeyboardVk(0x08, keyUp: true);
+        }
+        var sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
+        return sent == inputs.Length;
+    }
+
     [StructLayout(LayoutKind.Sequential)]
     public struct INPUT
     {
@@ -130,4 +144,3 @@ internal static class Win32
         public IntPtr dwExtraInfo;
     }
 }
-

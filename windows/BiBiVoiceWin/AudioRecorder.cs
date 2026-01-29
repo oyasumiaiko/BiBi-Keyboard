@@ -33,6 +33,8 @@ public sealed record RecordedAudio(byte[] Pcm16Bytes, byte[] WavBytes, int Sampl
 /// </summary>
 public sealed class AudioRecorder : IDisposable
 {
+    private const int StreamChunkMillis = 200;
+
     private WasapiCapture? _capture;
     private MemoryStream? _rawBuffer;
     private WaveFormat? _inputFormat;
@@ -45,9 +47,15 @@ public sealed class AudioRecorder : IDisposable
     private DateTimeOffset _lastSpeechAt;
     private bool _autoStopFired;
 
+    private BufferedWaveProvider? _buffered;
+    private IWaveProvider? _pcm16Provider;
+    private CancellationTokenSource? _pcmPumpCts;
+    private Task? _pcmPumpTask;
+
     public bool IsRecording { get; private set; }
 
     public event Action<AutoStopReason>? AutoStopRequested;
+    public event Action<byte[]>? Pcm16ChunkAvailable;
 
     public void Start(RecorderOptions options)
     {
@@ -67,9 +75,14 @@ public sealed class AudioRecorder : IDisposable
         _capture = capture;
         _inputFormat = capture.WaveFormat;
 
+        // 流式识别需要持续输出 PCM16；用缓冲 + 采样管线将“原始采集格式”转为目标格式。
+        SetupPcmPipeline(_inputFormat, options.TargetSampleRate);
+
         capture.DataAvailable += OnDataAvailable;
         capture.RecordingStopped += OnRecordingStopped;
         capture.StartRecording();
+
+        StartPcmPump();
 
         IsRecording = true;
     }
@@ -107,6 +120,7 @@ public sealed class AudioRecorder : IDisposable
         var pcm16 = AudioTranscoder.ToPcm16Mono(raw, _inputFormat, targetRate);
         var wav = WavUtils.Pcm16ToWav(pcm16, targetRate, channels: 1);
 
+        await StopPcmPumpAsync(ct).ConfigureAwait(false);
         CleanupCapture();
         return new RecordedAudio(pcm16, wav, targetRate, duration);
     }
@@ -117,6 +131,7 @@ public sealed class AudioRecorder : IDisposable
         if (e.BytesRecorded <= 0) return;
 
         _rawBuffer.Write(e.Buffer, 0, e.BytesRecorded);
+        _buffered?.AddSamples(e.Buffer, 0, e.BytesRecorded);
 
         var now = DateTimeOffset.UtcNow;
         var elapsed = now - _startedAt;
@@ -160,6 +175,8 @@ public sealed class AudioRecorder : IDisposable
         _capture.Dispose();
         _capture = null;
         _inputFormat = null;
+        _buffered = null;
+        _pcm16Provider = null;
         _stopTcs = null;
         _rawBuffer?.Dispose();
         _rawBuffer = null;
@@ -176,6 +193,90 @@ public sealed class AudioRecorder : IDisposable
         if (_disposed) return;
         _disposed = true;
         try { CleanupCapture(); } catch { }
+    }
+
+    private void SetupPcmPipeline(WaveFormat inputFormat, int targetSampleRate)
+    {
+        _buffered = new BufferedWaveProvider(inputFormat)
+        {
+            DiscardOnBufferOverflow = true,
+            BufferDuration = TimeSpan.FromSeconds(2)
+        };
+
+        ISampleProvider sampleProvider = _buffered.ToSampleProvider();
+
+        if (sampleProvider.WaveFormat.Channels == 2)
+        {
+            sampleProvider = new StereoToMonoSampleProvider(sampleProvider)
+            {
+                LeftVolume = 0.5f,
+                RightVolume = 0.5f
+            };
+        }
+        else if (sampleProvider.WaveFormat.Channels > 2)
+        {
+            var mux = new MultiplexingSampleProvider(new[] { sampleProvider }, 1);
+            mux.ConnectInputToOutput(0, 0);
+            sampleProvider = mux;
+        }
+
+        if (sampleProvider.WaveFormat.SampleRate != targetSampleRate)
+        {
+            sampleProvider = new WdlResamplingSampleProvider(sampleProvider, targetSampleRate);
+        }
+
+        _pcm16Provider = new SampleToWaveProvider16(sampleProvider);
+    }
+
+    private void StartPcmPump()
+    {
+        if (_pcm16Provider is null || _options is null) return;
+        _pcmPumpCts?.Cancel();
+        _pcmPumpCts?.Dispose();
+        _pcmPumpCts = new CancellationTokenSource();
+        var ct = _pcmPumpCts.Token;
+
+        var rate = _options.TargetSampleRate <= 0 ? 16000 : _options.TargetSampleRate;
+        var bytesPerSecond = rate * 2; // PCM16 单声道：16bit = 2 bytes
+        var chunkBytes = Math.Max(1, bytesPerSecond * StreamChunkMillis / 1000);
+
+        _pcmPumpTask = Task.Run(async () =>
+        {
+            var buf = new byte[chunkBytes];
+            while (!ct.IsCancellationRequested)
+            {
+                var read = _pcm16Provider.Read(buf, 0, buf.Length);
+                if (read > 0)
+                {
+                    var chunk = new byte[read];
+                    Buffer.BlockCopy(buf, 0, chunk, 0, read);
+                    try { Pcm16ChunkAvailable?.Invoke(chunk); } catch { }
+                    continue;
+                }
+
+                // 录音停止且缓冲已空：退出，避免无意义空转
+                if (!IsRecording && (_buffered?.BufferedBytes ?? 0) == 0) break;
+
+                try { await Task.Delay(10, ct).ConfigureAwait(false); } catch { }
+            }
+        }, ct);
+    }
+
+    private async Task StopPcmPumpAsync(CancellationToken ct)
+    {
+        if (_pcmPumpTask is null) return;
+
+        var completed = await Task.WhenAny(_pcmPumpTask, Task.Delay(800, ct)).ConfigureAwait(false);
+        if (completed != _pcmPumpTask)
+        {
+            try { _pcmPumpCts?.Cancel(); } catch { }
+        }
+
+        try { await _pcmPumpTask.ConfigureAwait(false); } catch { }
+
+        _pcmPumpTask = null;
+        _pcmPumpCts?.Dispose();
+        _pcmPumpCts = null;
     }
 }
 
