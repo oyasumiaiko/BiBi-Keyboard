@@ -1,0 +1,18 @@
+{
+  "Hotkey": "Ctrl+Alt+Space",
+  "InsertMode": "SendInput",
+  "AppendSpace": false,
+  "TargetSampleRate": 16000,
+  "MaxRecordSeconds": 60,
+  "AutoStopEnabled": true,
+  "AutoStopSilenceMs": 1200,
+  "AutoStopThresholdDb": -35,
+  "Volc": {
+    "Endpoint": "https://openspeech.bytedance.com/api/v3/auc/bigmodel/recognize/flash",
+    "AppKey": "",
+    "AccessKey": "",
+    "ResourceId": "volc.bigasr.auc_turbo",
+    "EnableDdc": false
+  }
+}
+

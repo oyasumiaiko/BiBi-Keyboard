@@ -27,6 +27,12 @@ openspec/
 speechrecognizer-tester/
 analysis/
 
+# Windows desktop (.NET)
+windows/**/bin/
+windows/**/obj/
+windows/**/.vs/
+windows/**/config.json
+
 # Node modules for docs
 node_modules/
 package-lock.json
