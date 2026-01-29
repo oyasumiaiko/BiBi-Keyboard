@@ -31,6 +31,7 @@ public sealed class TextInserter
 {
     private readonly InsertMode _mode;
     private readonly bool _appendSpace;
+    private const int InsertLogBudget = 4;
 
     public TextInserter(InsertMode mode, bool appendSpace)
     {
@@ -57,11 +58,11 @@ public sealed class TextInserter
                 if (!Win32.SendUnicodeText(finalText))
                 {
                     // 某些应用可能对 SendInput 兼容性差；这里提供“软降级”：
-                    await InsertByClipboardAsync(finalText, ct);
+                    await InsertByClipboardAsync(targetWindow, finalText, ct);
                 }
                 break;
             case InsertMode.Clipboard:
-                await InsertByClipboardAsync(finalText, ct);
+                await InsertByClipboardAsync(targetWindow, finalText, ct);
                 break;
             default:
                 Win32.SendUnicodeText(finalText);
@@ -69,7 +70,7 @@ public sealed class TextInserter
         }
     }
 
-    private static async Task InsertByClipboardAsync(string text, CancellationToken ct)
+    private static async Task InsertByClipboardAsync(IntPtr targetWindow, string text, CancellationToken ct)
     {
         // 注意：Clipboard API 需要在 STA 线程调用。此项目主线程是 WinForms STA。
         IDataObject? backup = null;
@@ -92,6 +93,7 @@ public sealed class TextInserter
             return;
         }
 
+        Win32.TrySetForegroundWindow(targetWindow);
         Win32.SendCtrlV();
 
         // 给目标应用一点时间完成粘贴，再恢复剪贴板，尽量不打扰用户。
@@ -126,6 +128,7 @@ public sealed class TextInserter
         private readonly SemaphoreSlim _gate = new(1, 1);
         private string _lastText = "";
         private bool _finalized;
+        private int _insertLogBudget = InsertLogBudget;
 
         public StreamingSession(TextInserter owner, IntPtr targetWindow)
         {
@@ -160,6 +163,8 @@ public sealed class TextInserter
                 if (isFinal) _finalized = true;
                 return;
             }
+
+            LogInsert($"阶段={(isFinal ? "final" : "partial")} 长度={normalized.Length} 模式={_owner._mode}");
 
             await _gate.WaitAsync(ct).ConfigureAwait(true);
             try
@@ -222,14 +227,26 @@ public sealed class TextInserter
         {
             if (string.IsNullOrEmpty(text)) return;
 
-            // 流式时优先使用 SendInput，避免频繁污染剪贴板。
-            if (_owner._mode == InsertMode.SendInput || !allowClipboard)
+            if (_owner._mode == InsertMode.Clipboard)
             {
-                if (Win32.SendUnicodeText(text)) return;
-                if (!allowClipboard) return;
+                // 强制走剪贴板粘贴，避免某些应用拦截 Unicode SendInput
+                await InsertByClipboardAsync(_targetWindow, text, ct).ConfigureAwait(true);
+                return;
             }
 
-            await InsertByClipboardAsync(text, ct).ConfigureAwait(true);
+            // 流式时优先使用 SendInput，避免频繁污染剪贴板。
+            if (Win32.SendUnicodeText(text)) return;
+            LogInsert($"SendInput 失败，尝试剪贴板（长度={text.Length}）");
+            if (!allowClipboard) return;
+
+            await InsertByClipboardAsync(_targetWindow, text, ct).ConfigureAwait(true);
+        }
+
+        private void LogInsert(string message)
+        {
+            if (_insertLogBudget <= 0) return;
+            _insertLogBudget--;
+            AppLogger.Status("插入", message);
         }
 
         private static int GetCommonPrefixLength(string a, string b)

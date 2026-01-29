@@ -49,7 +49,12 @@ public sealed class TrayAppContext : ApplicationContext
 
     public TrayAppContext()
     {
-        _uiContext = SynchronizationContext.Current ?? new SynchronizationContext();
+        // 确保使用 WinForms 的同步上下文，便于 Clipboard 等 STA 组件安全运行
+        if (SynchronizationContext.Current is not WindowsFormsSynchronizationContext)
+        {
+            SynchronizationContext.SetSynchronizationContext(new WindowsFormsSynchronizationContext());
+        }
+        _uiContext = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
         var (cfg, configPath, created) = AppConfig.LoadOrCreate();
         _cfg = cfg;
         _configPath = configPath;
