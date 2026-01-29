@@ -6,6 +6,7 @@ namespace BiBiVoiceWin;
 internal static class Win32
 {
     public const int WM_HOTKEY = 0x0312;
+    public const int WM_PASTE = 0x0302;
 
     public const uint MOD_ALT = 0x0001;
     public const uint MOD_CONTROL = 0x0002;
@@ -38,6 +39,8 @@ internal static class Win32
     [DllImport("user32.dll", SetLastError = true)]
     public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
 
+    public static int LastSendInputError { get; private set; }
+
     public static bool TrySetForegroundWindow(IntPtr hWnd)
     {
         if (hWnd == IntPtr.Zero) return false;
@@ -68,8 +71,7 @@ internal static class Win32
             inputs[i++] = INPUT.KeyboardUnicode(ch, keyUp: true);
         }
 
-        var sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
-        return sent == inputs.Length;
+        return SendInputInternal(inputs);
     }
 
     public static bool SendCtrlV()
@@ -82,8 +84,7 @@ internal static class Win32
             INPUT.KeyboardVk(0x56, keyUp: true),
             INPUT.KeyboardVk(0x11, keyUp: true),
         };
-        var sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
-        return sent == inputs.Length;
+        return SendInputInternal(inputs);
     }
 
     public static bool SendBackspace(int count)
@@ -96,7 +97,40 @@ internal static class Win32
             inputs[i++] = INPUT.KeyboardVk(0x08, keyUp: false); // VK_BACK
             inputs[i++] = INPUT.KeyboardVk(0x08, keyUp: true);
         }
+        return SendInputInternal(inputs);
+    }
+
+    /// <summary>
+    /// 尝试对目标窗口的“焦点控件”发送 WM_PASTE，作为 Ctrl+V 的兜底。
+    /// </summary>
+    public static bool SendPasteMessage(IntPtr targetWindow)
+    {
+        var focus = GetFocusWindow(targetWindow);
+        if (focus == IntPtr.Zero) return false;
+        var ok = SendMessageTimeout(focus, WM_PASTE, IntPtr.Zero, IntPtr.Zero, SMTO_ABORTIFHUNG, 500, out _);
+        return ok != IntPtr.Zero;
+    }
+
+    private static IntPtr GetFocusWindow(IntPtr targetWindow)
+    {
+        if (targetWindow == IntPtr.Zero) return IntPtr.Zero;
+        var threadId = GetWindowThreadProcessId(targetWindow, out _);
+        if (threadId == 0) return IntPtr.Zero;
+        var info = new GUITHREADINFO { cbSize = Marshal.SizeOf<GUITHREADINFO>() };
+        if (!GetGUIThreadInfo(threadId, ref info)) return IntPtr.Zero;
+        if (info.hwndFocus != IntPtr.Zero) return info.hwndFocus;
+        if (info.hwndActive != IntPtr.Zero) return info.hwndActive;
+        return targetWindow;
+    }
+
+    private static bool SendInputInternal(INPUT[] inputs)
+    {
+        LastSendInputError = 0;
         var sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
+        if (sent != inputs.Length)
+        {
+            LastSendInputError = Marshal.GetLastWin32Error();
+        }
         return sent == inputs.Length;
     }
 
@@ -161,4 +195,38 @@ internal static class Win32
         public uint time;
         public IntPtr dwExtraInfo;
     }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RECT
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct GUITHREADINFO
+    {
+        public int cbSize;
+        public int flags;
+        public IntPtr hwndActive;
+        public IntPtr hwndFocus;
+        public IntPtr hwndCapture;
+        public IntPtr hwndMenuOwner;
+        public IntPtr hwndMoveSize;
+        public IntPtr hwndCaret;
+        public RECT rcCaret;
+    }
+
+    private const uint SMTO_ABORTIFHUNG = 0x0002;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool GetGUIThreadInfo(uint idThread, ref GUITHREADINFO lpgui);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern IntPtr SendMessageTimeout(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam, uint flags, uint timeout, out IntPtr result);
 }

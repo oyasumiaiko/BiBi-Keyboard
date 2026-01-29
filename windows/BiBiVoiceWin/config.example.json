@@ -1,7 +1,10 @@
 {
-  "Hotkey": "Ctrl+Alt+Space",
-  "InsertMode": "SendInput",
+  "Hotkey": "Alt+Space",
+  "InsertMode": "Clipboard",
   "AppendSpace": false,
+  "HoldToTalkEnabled": true,
+  "HoldToTalkKey": "Space",
+  "HoldToTalkMinHoldMs": 200,
   "TargetSampleRate": 16000,
   "MaxRecordSeconds": 60,
   "AutoStopEnabled": true,

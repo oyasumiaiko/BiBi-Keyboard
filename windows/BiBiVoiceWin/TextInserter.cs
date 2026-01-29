@@ -11,7 +11,7 @@ public enum InsertMode
 
 public static class InsertModeParser
 {
-    public static InsertMode ParseOrDefault(string? text, InsertMode defaultMode = InsertMode.SendInput)
+    public static InsertMode ParseOrDefault(string? text, InsertMode defaultMode = InsertMode.Clipboard)
     {
         if (string.IsNullOrWhiteSpace(text)) return defaultMode;
         return text.Trim().ToLowerInvariant() switch
@@ -98,7 +98,27 @@ public sealed class TextInserter
         var pasted = Win32.SendCtrlV();
         if (!pasted)
         {
-            AppLogger.Status("插入", "SendCtrlV 失败");
+            AppLogger.Status("插入", $"SendCtrlV 失败 (err={Win32.LastSendInputError})");
+            // 某些环境下 SendInput 可能被限制；尝试 SendKeys 与 WM_PASTE 兜底。
+            try
+            {
+                SendKeys.SendWait("^v");
+                pasted = true;
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Status("插入", $"SendKeys 失败: {ex.Message}");
+            }
+        }
+
+        if (!pasted)
+        {
+            var ok = Win32.SendPasteMessage(targetWindow);
+            if (!ok)
+            {
+                AppLogger.Status("插入", "WM_PASTE 失败");
+            }
+            pasted = ok;
         }
 
         // 给目标应用一点时间完成粘贴，再恢复剪贴板，尽量不打扰用户。
@@ -136,6 +156,7 @@ public sealed class TextInserter
         private string _lastText = "";
         private bool _finalized;
         private int _insertLogBudget = InsertLogBudget;
+        private bool _forceClipboard;
 
         public StreamingSession(TextInserter owner, IntPtr targetWindow)
         {
@@ -234,7 +255,7 @@ public sealed class TextInserter
         {
             if (string.IsNullOrEmpty(text)) return;
 
-            if (_owner._mode == InsertMode.Clipboard)
+            if (_owner._mode == InsertMode.Clipboard || _forceClipboard)
             {
                 // 强制走剪贴板粘贴，避免某些应用拦截 Unicode SendInput
                 var ok = await InsertByClipboardAsync(_targetWindow, text, ct).ConfigureAwait(true);
@@ -247,14 +268,19 @@ public sealed class TextInserter
 
             // 流式时优先使用 SendInput，避免频繁污染剪贴板。
             if (Win32.SendUnicodeText(text)) return;
-            LogInsert($"SendInput 失败，尝试剪贴板（长度={text.Length}）");
-            if (!allowClipboard) return;
+            LogInsert($"SendInput 失败，尝试剪贴板（长度={text.Length}，err={Win32.LastSendInputError}）");
 
-            var ok2 = await InsertByClipboardAsync(_targetWindow, text, ct).ConfigureAwait(true);
-            if (!ok2)
+            // SendInput 失败一次就切到剪贴板，保证流式有输出。
+            _forceClipboard = true;
+            if (!allowClipboard && _owner._mode == InsertMode.SendInput)
             {
-                LogInsert("剪贴板粘贴失败");
+                // 即便是 partial 也尝试剪贴板一次，避免“完全无输出”的体验。
+                allowClipboard = true;
             }
+
+            if (!allowClipboard) return;
+            var ok2 = await InsertByClipboardAsync(_targetWindow, text, ct).ConfigureAwait(true);
+            if (!ok2) LogInsert("剪贴板粘贴失败");
         }
 
         private void LogInsert(string message)

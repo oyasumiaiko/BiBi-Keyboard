@@ -4,9 +4,13 @@ namespace BiBiVoiceWin;
 
 public sealed class AppConfig
 {
-    public string Hotkey { get; init; } = "Ctrl+Alt+Space";
-    public string InsertMode { get; init; } = "SendInput";
+    public string Hotkey { get; init; } = "Alt+Space";
+    public string InsertMode { get; init; } = "Clipboard";
     public bool AppendSpace { get; init; } = false;
+
+    public bool HoldToTalkEnabled { get; init; } = true;
+    public string HoldToTalkKey { get; init; } = "Space";
+    public int HoldToTalkMinHoldMs { get; init; } = 200;
 
     public int TargetSampleRate { get; init; } = 16000;
     public int MaxRecordSeconds { get; init; } = 60;
@@ -56,9 +60,12 @@ public sealed class AppConfig
     {
         return new AppConfig
         {
-            Hotkey = "Ctrl+Alt+Space",
-            InsertMode = "SendInput",
+            Hotkey = "Alt+Space",
+            InsertMode = "Clipboard",
             AppendSpace = false,
+            HoldToTalkEnabled = true,
+            HoldToTalkKey = "Space",
+            HoldToTalkMinHoldMs = 200,
             TargetSampleRate = 16000,
             MaxRecordSeconds = 60,
             AutoStopEnabled = true,

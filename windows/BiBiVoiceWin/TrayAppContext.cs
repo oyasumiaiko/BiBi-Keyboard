@@ -26,10 +26,12 @@ public sealed class TrayAppContext : ApplicationContext
     private readonly ToolStripMenuItem _toggleItem;
     private readonly System.Windows.Forms.Timer _uiTimer;
     private readonly SynchronizationContext _uiContext;
+    private Icon? _dynamicIcon;
 
     private readonly AppConfig _cfg;
     private readonly string _configPath;
     private readonly HotkeyManager? _hotkey;
+    private readonly KeyboardHook? _keyboardHook;
     private readonly AudioRecorder _recorder;
     private readonly VolcStreamAsrClient _asr;
     private readonly TextInserter _inserter;
@@ -47,6 +49,13 @@ public sealed class TrayAppContext : ApplicationContext
     private bool _pcmChunkLogged;
     private bool _partialLogged;
 
+    // 按住说话
+    private Keys _holdKey = Keys.Space;
+    private int _holdMinMs;
+    private bool _holdKeyDown;
+    private bool _holdTriggered;
+    private System.Threading.Timer? _holdTimer;
+
     public TrayAppContext()
     {
         // 确保使用 WinForms 的同步上下文，便于 Clipboard 等 STA 组件安全运行
@@ -58,6 +67,7 @@ public sealed class TrayAppContext : ApplicationContext
         var (cfg, configPath, created) = AppConfig.LoadOrCreate();
         _cfg = cfg;
         _configPath = configPath;
+        _holdMinMs = Math.Max(80, _cfg.HoldToTalkMinHoldMs);
 
         _recorder = new AudioRecorder();
         _recorder.AutoStopRequested += reason =>
@@ -96,6 +106,7 @@ public sealed class TrayAppContext : ApplicationContext
             ContextMenuStrip = _menu
         };
         _tray.DoubleClick += async (_, _) => await ToggleAsync();
+        UpdateTrayIcon();
 
         // UI 定时器：把“录音线程的自动停止事件”拉回 UI 线程处理
         _uiTimer = new System.Windows.Forms.Timer { Interval = 100 };
@@ -107,22 +118,46 @@ public sealed class TrayAppContext : ApplicationContext
         };
         _uiTimer.Start();
 
-        // 注册全局热键
-        if (HotkeySpecParser.TryParse(_cfg.Hotkey, out var spec, out var err))
+        // 按住说话（优先）或全局热键（兜底）
+        var holdErr = "";
+        if (_cfg.HoldToTalkEnabled && KeyParser.TryParseSingleKey(_cfg.HoldToTalkKey, out var holdKey, out holdErr))
         {
             try
             {
-                _hotkey = new HotkeyManager(spec);
-                _hotkey.Pressed += async (_, _) => await ToggleAsync();
+                _holdKey = holdKey;
+                _keyboardHook = new KeyboardHook();
+                _keyboardHook.KeyEvent += OnHoldKeyEvent;
+                LogStatus("按住说话", $"按键：{_cfg.HoldToTalkKey}，长按阈值 {_holdMinMs}ms");
             }
             catch (Exception ex)
             {
-                LogStatus("热键注册失败", ex.Message);
+                LogStatus("键盘钩子失败", ex.Message);
             }
         }
         else
         {
-            LogStatus("热键配置错误", err);
+            if (_cfg.HoldToTalkEnabled)
+            {
+                LogStatus("按住说话配置错误", holdErr);
+            }
+
+            // 注册全局热键
+            if (HotkeySpecParser.TryParse(_cfg.Hotkey, out var spec, out var err))
+            {
+                try
+                {
+                    _hotkey = new HotkeyManager(spec);
+                    _hotkey.Pressed += async (_, _) => await ToggleAsync();
+                }
+                catch (Exception ex)
+                {
+                    LogStatus("热键注册失败", ex.Message);
+                }
+            }
+            else
+            {
+                LogStatus("热键配置错误", err);
+            }
         }
 
         LogStatus("BiBiVoiceWin 已启动", $"热键：{_cfg.Hotkey} 配置：{_configPath}");
@@ -161,6 +196,7 @@ public sealed class TrayAppContext : ApplicationContext
 
         _toggleItem.Text = "停止";
         _tray.Text = "BiBiVoiceWin - 录音中";
+        UpdateTrayIcon();
 
         try
         {
@@ -179,6 +215,7 @@ public sealed class TrayAppContext : ApplicationContext
             _state = AppState.Idle;
             _toggleItem.Text = "开始录音";
             _tray.Text = "BiBiVoiceWin";
+            UpdateTrayIcon();
             LogStatus("启动录音失败", ex.Message);
         }
     }
@@ -190,6 +227,7 @@ public sealed class TrayAppContext : ApplicationContext
         _state = AppState.Transcribing;
         _toggleItem.Text = "收尾中…";
         _tray.Text = "BiBiVoiceWin - 收尾中";
+        UpdateTrayIcon();
 
         _workCts?.Cancel();
         _workCts?.Dispose();
@@ -244,6 +282,7 @@ public sealed class TrayAppContext : ApplicationContext
             _state = AppState.Idle;
             _toggleItem.Text = "开始录音";
             _tray.Text = "BiBiVoiceWin";
+            UpdateTrayIcon();
         }
     }
 
@@ -263,6 +302,7 @@ public sealed class TrayAppContext : ApplicationContext
         _partialLogged = false;
         LogStatus("流式会话启动", $"Endpoint: {_cfg.Volc.Endpoint} ResourceId: {_cfg.Volc.ResourceId}");
         _asrTask = _asr.TranscribeStreamingAsync(_pcmChannel.Reader, targetSampleRate, OnAsrResult, _streamCts.Token);
+        UpdateTrayIcon();
     }
 
     private void CompleteAudioStream()
@@ -283,6 +323,7 @@ public sealed class TrayAppContext : ApplicationContext
         _asrTask = null;
         _streamCts?.Dispose();
         _streamCts = null;
+        UpdateTrayIcon();
     }
 
     private async Task<string> AwaitFinalResultAsync(CancellationToken ct)
@@ -346,6 +387,90 @@ public sealed class TrayAppContext : ApplicationContext
         }, null);
     }
 
+    private void PostToUiAction(Action action)
+    {
+        _uiContext.Post(_ =>
+        {
+            try { action(); } catch { }
+        }, null);
+    }
+
+    private void OnHoldKeyEvent(object? sender, KeyboardHook.KeyboardHookEventArgs e)
+    {
+        if (e.IsInjected) return;
+        if (e.Key != _holdKey) return;
+
+        if (e.IsKeyDown)
+        {
+            // 重复按下（自动重复）直接吞掉
+            if (_holdKeyDown)
+            {
+                e.Suppress = true;
+                return;
+            }
+
+            _holdKeyDown = true;
+            _holdTriggered = false;
+            StartHoldTimer();
+            e.Suppress = true;
+            return;
+        }
+
+        if (e.IsKeyUp)
+        {
+            _holdKeyDown = false;
+            StopHoldTimer();
+
+            if (_holdTriggered)
+            {
+                // 松开 -> 停止识别
+                PostToUi(async _ => await BeginStopAndFinalizeAsync(null));
+            }
+            else
+            {
+                // 视为“短按空格”，补发一个空格
+                Win32.SendUnicodeText(" ");
+            }
+
+            e.Suppress = true;
+        }
+    }
+
+    private void StartHoldTimer()
+    {
+        _holdTimer?.Dispose();
+        _holdTimer = new System.Threading.Timer(_ =>
+        {
+            if (!_holdKeyDown || _holdTriggered) return;
+            _holdTriggered = true;
+            // 达到长按阈值 -> 开始录音
+            PostToUiAction(StartRecording);
+        }, null, _holdMinMs, Timeout.Infinite);
+    }
+
+    private void StopHoldTimer()
+    {
+        try { _holdTimer?.Dispose(); } catch { }
+        _holdTimer = null;
+    }
+
+    private void UpdateTrayIcon()
+    {
+        var micOn = _state == AppState.Recording;
+        var streamOn = _asrTask is not null || _state == AppState.Transcribing;
+        try
+        {
+            var icon = TrayIconRenderer.Create(micOn, streamOn);
+            _dynamicIcon?.Dispose();
+            _dynamicIcon = icon;
+            _tray.Icon = icon;
+        }
+        catch
+        {
+            // 兜底：失败时保持现有图标
+        }
+    }
+
     private void OpenConfigFile()
     {
         try
@@ -402,8 +527,11 @@ public sealed class TrayAppContext : ApplicationContext
 
         _tray.Visible = false;
         _tray.Dispose();
+        _dynamicIcon?.Dispose();
         _menu.Dispose();
         _hotkey?.Dispose();
+        _keyboardHook?.Dispose();
+        _holdTimer?.Dispose();
         _recorder.Dispose();
         ExitThread();
     }
