@@ -200,7 +200,9 @@ public sealed class AudioRecorder : IDisposable
         _buffered = new BufferedWaveProvider(inputFormat)
         {
             DiscardOnBufferOverflow = true,
-            BufferDuration = TimeSpan.FromSeconds(2)
+            BufferDuration = TimeSpan.FromSeconds(2),
+            // 避免在缓冲不足时用“静音补齐”，否则会导致流式发送大量全零数据
+            ReadFully = false
         };
 
         ISampleProvider sampleProvider = _buffered.ToSampleProvider();
@@ -243,19 +245,48 @@ public sealed class AudioRecorder : IDisposable
         _pcmPumpTask = Task.Run(async () =>
         {
             var buf = new byte[chunkBytes];
+            // 累积到固定 chunk 大小后再输出，尽量保持稳定的流式节奏
+            var pending = new byte[chunkBytes * 4];
+            var pendingCount = 0;
             while (!ct.IsCancellationRequested)
             {
                 var read = _pcm16Provider.Read(buf, 0, buf.Length);
                 if (read > 0)
                 {
-                    var chunk = new byte[read];
-                    Buffer.BlockCopy(buf, 0, chunk, 0, read);
-                    try { Pcm16ChunkAvailable?.Invoke(chunk); } catch { }
-                    continue;
+                    if (pendingCount + read > pending.Length)
+                    {
+                        var next = new byte[Math.Max(pendingCount + read, pending.Length * 2)];
+                        Buffer.BlockCopy(pending, 0, next, 0, pendingCount);
+                        pending = next;
+                    }
+                    Buffer.BlockCopy(buf, 0, pending, pendingCount, read);
+                    pendingCount += read;
+
+                    while (pendingCount >= chunkBytes)
+                    {
+                        var chunk = new byte[chunkBytes];
+                        Buffer.BlockCopy(pending, 0, chunk, 0, chunkBytes);
+                        pendingCount -= chunkBytes;
+                        if (pendingCount > 0)
+                        {
+                            Buffer.BlockCopy(pending, chunkBytes, pending, 0, pendingCount);
+                        }
+                        try { Pcm16ChunkAvailable?.Invoke(chunk); } catch { }
+                    }
                 }
 
                 // 录音停止且缓冲已空：退出，避免无意义空转
-                if (!IsRecording && (_buffered?.BufferedBytes ?? 0) == 0) break;
+                if (!IsRecording && (_buffered?.BufferedBytes ?? 0) == 0)
+                {
+                    if (pendingCount > 0)
+                    {
+                        var tail = new byte[pendingCount];
+                        Buffer.BlockCopy(pending, 0, tail, 0, pendingCount);
+                        pendingCount = 0;
+                        try { Pcm16ChunkAvailable?.Invoke(tail); } catch { }
+                    }
+                    break;
+                }
 
                 try { await Task.Delay(10, ct).ConfigureAwait(false); } catch { }
             }

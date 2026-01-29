@@ -281,10 +281,10 @@ public sealed class TrayAppContext : ApplicationContext
     private async Task<string> AwaitFinalResultAsync(CancellationToken ct)
     {
         if (_asrTask is null) return "";
-        var done = await Task.WhenAny(_asrTask, Task.Delay(15000, ct)).ConfigureAwait(false);
+        var done = await Task.WhenAny(_asrTask, Task.Delay(30000, ct)).ConfigureAwait(false);
         if (done != _asrTask)
         {
-            LogStatus("识别超时", "15 秒内未收到最终结果");
+            LogStatus("识别超时", "30 秒内未收到最终结果");
             CancelStreamingSession();
             return "";
         }
@@ -299,7 +299,8 @@ public sealed class TrayAppContext : ApplicationContext
         if (!_pcmChunkLogged)
         {
             _pcmChunkLogged = true;
-            LogStatus("音频流", "已开始接收 PCM 分片");
+            var db = EstimatePcm16Dbfs(chunk);
+            LogStatus("音频流", $"已开始接收 PCM 分片（首包 {chunk.Length} bytes，约 {db:0.0} dBFS）");
         }
         writer.TryWrite(chunk);
     }
@@ -364,6 +365,24 @@ public sealed class TrayAppContext : ApplicationContext
     private void LogStatus(string title, string text)
     {
         AppLogger.Status(title, text);
+    }
+
+    private static double EstimatePcm16Dbfs(byte[] pcm16)
+    {
+        if (pcm16.Length < 2) return double.NegativeInfinity;
+        double sumSquares = 0;
+        var count = 0;
+        for (var i = 0; i + 1 < pcm16.Length; i += 2)
+        {
+            var sample = BitConverter.ToInt16(pcm16, i);
+            var f = sample / 32768.0;
+            sumSquares += f * f;
+            count++;
+        }
+        if (count == 0) return double.NegativeInfinity;
+        var rms = Math.Sqrt(sumSquares / count);
+        if (rms <= 0) return double.NegativeInfinity;
+        return 20.0 * Math.Log10(rms);
     }
 
     private void Exit()

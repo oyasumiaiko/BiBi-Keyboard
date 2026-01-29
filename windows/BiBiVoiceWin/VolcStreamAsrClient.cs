@@ -38,6 +38,8 @@ public sealed class VolcStreamAsrClient
 
     private readonly VolcConfig _cfg;
     private readonly TimeSpan _receiveTimeout;
+    private bool _loggedDecodeError;
+    private int _serverMsgLogged;
 
     public VolcStreamAsrClient(VolcConfig cfg, TimeSpan? receiveTimeout = null)
     {
@@ -50,6 +52,8 @@ public sealed class VolcStreamAsrClient
     /// </summary>
     public async Task<string> TranscribeAsync(byte[] pcm16, int sampleRate, CancellationToken ct)
     {
+        _loggedDecodeError = false;
+        _serverMsgLogged = 0;
         if (string.IsNullOrWhiteSpace(_cfg.Endpoint))
         {
             throw new InvalidOperationException("Volc.Endpoint 为空");
@@ -74,7 +78,9 @@ public sealed class VolcStreamAsrClient
         ws.Options.SetRequestHeader("X-Api-Resource-Id", _cfg.ResourceId);
         ws.Options.SetRequestHeader("X-Api-Connect-Id", Guid.NewGuid().ToString());
 
+        AppLogger.Status("WebSocket", "开始连接");
         await ws.ConnectAsync(new Uri(_cfg.Endpoint), ct).ConfigureAwait(false);
+        AppLogger.Status("WebSocket", "连接成功");
 
         // 1) 发送“完整请求”
         var fullJson = BuildFullClientRequestJson(_cfg.AppKey, sampleRate, _cfg.EnableDdc);
@@ -88,6 +94,7 @@ public sealed class VolcStreamAsrClient
             payload: fullPayload,
             ct
         ).ConfigureAwait(false);
+        AppLogger.Status("WebSocket", "已发送 Full Client Request");
 
         // 2) 分包发送音频（最后一包带标记）
         await SendAudioFramesAsync(ws, pcm16, sampleRate, ct).ConfigureAwait(false);
@@ -111,6 +118,8 @@ public sealed class VolcStreamAsrClient
         Action<string, bool> onResult,
         CancellationToken ct)
     {
+        _loggedDecodeError = false;
+        _serverMsgLogged = 0;
         if (string.IsNullOrWhiteSpace(_cfg.Endpoint))
         {
             throw new InvalidOperationException("Volc.Endpoint 为空");
@@ -135,7 +144,9 @@ public sealed class VolcStreamAsrClient
         ws.Options.SetRequestHeader("X-Api-Resource-Id", _cfg.ResourceId);
         ws.Options.SetRequestHeader("X-Api-Connect-Id", Guid.NewGuid().ToString());
 
+        AppLogger.Status("WebSocket", "开始连接");
         await ws.ConnectAsync(new Uri(_cfg.Endpoint), ct).ConfigureAwait(false);
+        AppLogger.Status("WebSocket", "连接成功");
 
         // 1) 发送“完整请求”
         var fullJson = BuildFullClientRequestJson(_cfg.AppKey, sampleRate, _cfg.EnableDdc);
@@ -149,12 +160,19 @@ public sealed class VolcStreamAsrClient
             payload: fullPayload,
             ct
         ).ConfigureAwait(false);
+        AppLogger.Status("WebSocket", "已发送 Full Client Request");
 
         // 2) 并行发送音频帧
         var sendTask = Task.Run(async () =>
         {
+            var sentFirst = false;
             await foreach (var chunk in audioReader.ReadAllAsync(ct).ConfigureAwait(false))
             {
+                if (!sentFirst)
+                {
+                    sentFirst = true;
+                    AppLogger.Status("音频流", $"发送首包大小 {chunk.Length} bytes");
+                }
                 await SendFrameAsync(
                     ws,
                     messageType: MsgTypeAudioOnlyClientReq,
@@ -176,6 +194,7 @@ public sealed class VolcStreamAsrClient
                 payload: Gzip(Array.Empty<byte>()),
                 ct
             ).ConfigureAwait(false);
+            AppLogger.Status("音频流", "已发送最终包标记");
         }, ct);
 
         // 3) 接收并解析结果
@@ -188,7 +207,14 @@ public sealed class VolcStreamAsrClient
             while (ws.State == WebSocketState.Open || ws.State == WebSocketState.CloseReceived)
             {
                 var msg = await ReceiveMessageAsync(ws, timeoutCts.Token).ConfigureAwait(false);
-                if (msg is null) break;
+                if (msg is null)
+                {
+                    var status = ws.CloseStatus?.ToString() ?? "unknown";
+                    var desc = ws.CloseStatusDescription ?? "";
+                    AppLogger.Status("WebSocket", $"连接关闭 {status} {desc}".Trim());
+                    break;
+                }
+                LogServerMessageHeader(msg);
 
                 if (!TryParseServerMessage(msg, out var text, out var isFinal, out var error))
                 {
@@ -342,7 +368,7 @@ public sealed class VolcStreamAsrClient
         return ms.ToArray();
     }
 
-    private static bool TryParseServerMessage(byte[] data, out string? text, out bool isFinal, out string? error)
+    private bool TryParseServerMessage(byte[] data, out string? text, out bool isFinal, out string? error)
     {
         text = null;
         isFinal = false;
@@ -396,6 +422,11 @@ public sealed class VolcStreamAsrClient
             var lower = msg.ToLowerInvariant();
             if (code == 45000000 && (lower.Contains("decode ws request failed") || lower.Contains("unable to decode")))
             {
+                if (!_loggedDecodeError)
+                {
+                    _loggedDecodeError = true;
+                    AppLogger.Status("ASR警告", $"服务端拒绝请求：{msg}");
+                }
                 return false; // 忽略该类非致命错误
             }
             error = $"ASR Error {code}: {msg}";
@@ -403,6 +434,32 @@ public sealed class VolcStreamAsrClient
         }
 
         return false;
+    }
+
+    private void LogServerMessageHeader(byte[] data)
+    {
+        if (_serverMsgLogged >= 3) return;
+        if (data.Length < 3)
+        {
+            _serverMsgLogged++;
+            AppLogger.Status("ASR返回", $"消息过短 len={data.Length}");
+            return;
+        }
+
+        var b0 = data[0] & 0xFF;
+        var b1 = data[1] & 0xFF;
+        var b2 = data[2] & 0xFF;
+        var headerSizeBytes = (b0 & 0x0F) * 4;
+        var msgType = (b1 >> 4) & 0x0F;
+        var flags = b1 & 0x0F;
+        var serialization = (b2 >> 4) & 0x0F;
+        var compression = b2 & 0x0F;
+
+        _serverMsgLogged++;
+        AppLogger.Status(
+            "ASR返回",
+            $"len={data.Length} header={headerSizeBytes} type={msgType} flags={flags} ser={serialization} comp={compression}"
+        );
     }
 
     private static string ParseTextFromJson(string json)
