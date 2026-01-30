@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Windowing;
+using Windows.Graphics;
 using Windows.UI;
 using WinRT.Interop;
 
@@ -13,6 +14,8 @@ public sealed partial class MainWindow : Window
 {
     private readonly SettingsViewModel _viewModel = new();
     private AppWindowTitleBar? _titleBar;
+    private AppWindow? _appWindow;
+    private SizeInt32 _lastSize;
 
     public MainWindow()
     {
@@ -26,6 +29,8 @@ public sealed partial class MainWindow : Window
             ApplyCardTheme();
         };
         ApplyCardTheme();
+        SizeChanged += OnWindowSizeChanged;
+        Closed += (_, _) => SaveWindowState();
         try
         {
             _viewModel.Load();
@@ -62,6 +67,13 @@ public sealed partial class MainWindow : Window
             var hWnd = WindowNative.GetWindowHandle(this);
             var windowId = Win32Interop.GetWindowIdFromWindow(hWnd);
             var appWindow = AppWindow.GetFromWindowId(windowId);
+            _appWindow = appWindow;
+
+            // 启动时恢复上次窗口大小，避免每次都回到默认尺寸。
+            var state = WindowStateStore.Load();
+            var target = WindowStateStore.NormalizeSize(state);
+            appWindow.Resize(target);
+            _lastSize = target;
 
             // 设置窗口图标，避免显示默认程序图标。
             var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico");
@@ -127,6 +139,18 @@ public sealed partial class MainWindow : Window
 
         Root.Resources["CardBackgroundBrush"] = new SolidColorBrush(cardBg);
         Root.Resources["CardBorderBrush"] = new SolidColorBrush(cardBorder);
+    }
+
+    private void OnWindowSizeChanged(object sender, WindowSizeChangedEventArgs args)
+    {
+        if (_appWindow is null) return;
+        _lastSize = _appWindow.Size;
+    }
+
+    private void SaveWindowState()
+    {
+        if (_lastSize.Width <= 0 || _lastSize.Height <= 0) return;
+        WindowStateStore.Save(_lastSize);
     }
 
 
