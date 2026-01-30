@@ -36,9 +36,21 @@
 
             <TextBlock Grid.Row="1" Text="{Binding ConfigPath}" Margin="0,8,0,8" Opacity="0.7" />
 
-            <controls:TabView Grid.Row="2">
-                <controls:TabViewItem Header="常用">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+            <controls:NavigationView x:Name="NavView"
+                                     Grid.Row="2"
+                                     PaneDisplayMode="Left"
+                                     IsBackButtonVisible="Collapsed"
+                                     IsSettingsVisible="False"
+                                     SelectionChanged="NavView_SelectionChanged">
+                <controls:NavigationView.MenuItems>
+                    <controls:NavigationViewItem Content="常用" Tag="general" Icon="Home" />
+                    <controls:NavigationViewItem Content="录音" Tag="record" Icon="Microphone" />
+                    <controls:NavigationViewItem Content="语音识别" Tag="asr" Icon="ContactInfo" />
+                    <controls:NavigationViewItem Content="高级" Tag="advanced" Icon="Setting" />
+                </controls:NavigationView.MenuItems>
+                <Grid>
+                    <ScrollViewer x:Name="PageGeneral"
+                                  VerticalScrollBarVisibility="Auto"
                                   VerticalScrollMode="Enabled"
                                   IsVerticalScrollChainingEnabled="True"
                                   IsVerticalRailEnabled="True"
@@ -61,10 +73,10 @@
                             </Border>
                         </StackPanel>
                     </ScrollViewer>
-                </controls:TabViewItem>
 
-                <controls:TabViewItem Header="录音">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                    <ScrollViewer x:Name="PageRecord"
+                                  Visibility="Collapsed"
+                                  VerticalScrollBarVisibility="Auto"
                                   VerticalScrollMode="Enabled"
                                   IsVerticalScrollChainingEnabled="True"
                                   IsVerticalRailEnabled="True"
@@ -88,10 +100,10 @@
                             </Border>
                         </StackPanel>
                     </ScrollViewer>
-                </controls:TabViewItem>
 
-                <controls:TabViewItem Header="语音识别">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                    <ScrollViewer x:Name="PageAsr"
+                                  Visibility="Collapsed"
+                                  VerticalScrollBarVisibility="Auto"
                                   VerticalScrollMode="Enabled"
                                   IsVerticalScrollChainingEnabled="True"
                                   IsVerticalRailEnabled="True"
@@ -115,10 +127,10 @@
                             </Border>
                         </StackPanel>
                     </ScrollViewer>
-                </controls:TabViewItem>
 
-                <controls:TabViewItem Header="高级">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                    <ScrollViewer x:Name="PageAdvanced"
+                                  Visibility="Collapsed"
+                                  VerticalScrollBarVisibility="Auto"
                                   VerticalScrollMode="Enabled"
                                   IsVerticalScrollChainingEnabled="True"
                                   IsVerticalRailEnabled="True"
@@ -160,8 +172,8 @@
                             </Border>
                         </StackPanel>
                     </ScrollViewer>
-                </controls:TabViewItem>
-            </controls:TabView>
+                </Grid>
+            </controls:NavigationView>
         </Grid>
     </Grid>
 </Window>

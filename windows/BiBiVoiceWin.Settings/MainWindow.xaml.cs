@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Linq;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
@@ -32,6 +33,7 @@ public sealed partial class MainWindow : Window
         ApplyCardTheme();
         SizeChanged += OnWindowSizeChanged;
         Closed += (_, _) => SaveWindowState();
+        InitNavigation();
         try
         {
             _viewModel.Load();
@@ -41,6 +43,31 @@ public sealed partial class MainWindow : Window
             SettingsLog.Write("SettingsViewModel.Load failed", ex);
             StatusText.Text = "加载配置失败，已写入日志";
         }
+    }
+
+    private void InitNavigation()
+    {
+        if (NavView.MenuItems.OfType<NavigationViewItem>().FirstOrDefault() is { } first)
+        {
+            NavView.SelectedItem = first;
+            ShowPage(first.Tag?.ToString() ?? "general");
+        }
+    }
+
+    private void NavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
+    {
+        if (args.SelectedItem is NavigationViewItem item)
+        {
+            ShowPage(item.Tag?.ToString() ?? "general");
+        }
+    }
+
+    private void ShowPage(string tag)
+    {
+        PageGeneral.Visibility = tag == "general" ? Visibility.Visible : Visibility.Collapsed;
+        PageRecord.Visibility = tag == "record" ? Visibility.Visible : Visibility.Collapsed;
+        PageAsr.Visibility = tag == "asr" ? Visibility.Visible : Visibility.Collapsed;
+        PageAdvanced.Visibility = tag == "advanced" ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void Root_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
