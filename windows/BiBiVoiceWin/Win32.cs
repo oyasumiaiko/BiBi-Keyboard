@@ -6,7 +6,6 @@ namespace BiBiVoiceWin;
 internal static class Win32
 {
     public const int WM_HOTKEY = 0x0312;
-    public const int WM_PASTE = 0x0302;
 
     public const uint MOD_ALT = 0x0001;
     public const uint MOD_CONTROL = 0x0002;
@@ -92,19 +91,6 @@ internal static class Win32
         return SendInputInternal(inputs);
     }
 
-    public static bool SendCtrlV()
-    {
-        // Ctrl down, V down, V up, Ctrl up
-        var inputs = new[]
-        {
-            INPUT.KeyboardVk(0x11, keyUp: false), // VK_CONTROL
-            INPUT.KeyboardVk(0x56, keyUp: false), // 'V'
-            INPUT.KeyboardVk(0x56, keyUp: true),
-            INPUT.KeyboardVk(0x11, keyUp: true),
-        };
-        return SendInputInternal(inputs);
-    }
-
     public static bool SendBackspace(int count)
     {
         if (count <= 0) return true;
@@ -116,29 +102,6 @@ internal static class Win32
             inputs[i++] = INPUT.KeyboardVk(0x08, keyUp: true);
         }
         return SendInputInternal(inputs);
-    }
-
-    /// <summary>
-    /// 尝试对目标窗口的“焦点控件”发送 WM_PASTE，作为 Ctrl+V 的兜底。
-    /// </summary>
-    public static bool SendPasteMessage(IntPtr targetWindow)
-    {
-        var focus = GetFocusWindow(targetWindow);
-        if (focus == IntPtr.Zero) return false;
-        var ok = SendMessageTimeout(focus, WM_PASTE, IntPtr.Zero, IntPtr.Zero, SMTO_ABORTIFHUNG, 500, out _);
-        return ok != IntPtr.Zero;
-    }
-
-    private static IntPtr GetFocusWindow(IntPtr targetWindow)
-    {
-        if (targetWindow == IntPtr.Zero) return IntPtr.Zero;
-        var threadId = GetWindowThreadProcessId(targetWindow, out _);
-        if (threadId == 0) return IntPtr.Zero;
-        var info = new GUITHREADINFO { cbSize = Marshal.SizeOf<GUITHREADINFO>() };
-        if (!GetGUIThreadInfo(threadId, ref info)) return IntPtr.Zero;
-        if (info.hwndFocus != IntPtr.Zero) return info.hwndFocus;
-        if (info.hwndActive != IntPtr.Zero) return info.hwndActive;
-        return targetWindow;
     }
 
     private static bool SendInputInternal(INPUT[] inputs)
@@ -260,14 +223,10 @@ internal static class Win32
         public RECT rcCaret;
     }
 
-    private const uint SMTO_ABORTIFHUNG = 0x0002;
-
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool GetGUIThreadInfo(uint idThread, ref GUITHREADINFO lpgui);
 
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern IntPtr SendMessageTimeout(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam, uint flags, uint timeout, out IntPtr result);
 }

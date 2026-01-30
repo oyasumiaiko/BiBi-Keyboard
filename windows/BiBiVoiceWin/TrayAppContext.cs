@@ -61,7 +61,7 @@ public sealed class TrayAppContext : ApplicationContext
 
     public TrayAppContext()
     {
-        // 确保使用 WinForms 的同步上下文，便于 Clipboard 等 STA 组件安全运行
+        // 确保使用 WinForms 的同步上下文，便于 UI 线程相关操作
         if (SynchronizationContext.Current is not WindowsFormsSynchronizationContext)
         {
             SynchronizationContext.SetSynchronizationContext(new WindowsFormsSynchronizationContext());

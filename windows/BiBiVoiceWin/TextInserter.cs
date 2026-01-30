@@ -1,12 +1,10 @@
-using System.Windows.Forms;
 using System.Threading;
 
 namespace BiBiVoiceWin;
 
 public enum InsertMode
 {
-    SendInput = 1,
-    Clipboard = 2
+    SendInput = 1
 }
 
 public static class InsertModeParser
@@ -17,8 +15,6 @@ public static class InsertModeParser
         return text.Trim().ToLowerInvariant() switch
         {
             "sendinput" => InsertMode.SendInput,
-            "clipboard" => InsertMode.Clipboard,
-            "paste" => InsertMode.Clipboard,
             _ => defaultMode
         };
     }
@@ -44,103 +40,19 @@ public sealed class TextInserter
         return new StreamingSession(this, targetWindow);
     }
 
-    public async Task InsertAsync(IntPtr targetWindow, string text, CancellationToken ct)
+    public Task InsertAsync(IntPtr targetWindow, string text, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(text)) return;
+        if (string.IsNullOrWhiteSpace(text)) return Task.CompletedTask;
         var finalText = _appendSpace ? (text + " ") : text;
 
-        // 尽量把目标窗口拉回前台，保证 SendInput / Ctrl+V 能落到正确位置。
+        // 尽量把目标窗口拉回前台，保证 SendInput 能落到正确位置。
         Win32.TrySetForegroundWindow(targetWindow);
 
-        switch (_mode)
+        if (!Win32.SendUnicodeText(finalText))
         {
-            case InsertMode.SendInput:
-                if (!Win32.SendUnicodeText(finalText))
-                {
-                    AppLogger.Status("插入", $"SendInput 失败 (err={Win32.LastSendInputError})");
-                }
-                break;
-            case InsertMode.Clipboard:
-                await InsertByClipboardAsync(targetWindow, finalText, ct);
-                break;
-            default:
-                Win32.SendUnicodeText(finalText);
-                break;
+            AppLogger.Status("插入", $"SendInput 失败 (err={Win32.LastSendInputError})");
         }
-    }
-
-    private static async Task<bool> InsertByClipboardAsync(IntPtr targetWindow, string text, CancellationToken ct)
-    {
-        // 注意：Clipboard API 需要在 STA 线程调用。此项目主线程是 WinForms STA。
-        IDataObject? backup = null;
-        try
-        {
-            backup = Clipboard.GetDataObject();
-        }
-        catch
-        {
-            // 某些场景下剪贴板可能被占用；不影响“最小可运行链路”，继续尝试写入。
-        }
-
-        try
-        {
-            Clipboard.SetText(text);
-        }
-        catch
-        {
-            // 如果连剪贴板也写不进去，那就只能放弃插入。
-            AppLogger.Status("插入", "剪贴板写入失败");
-            return false;
-        }
-
-        Win32.TrySetForegroundWindow(targetWindow);
-        var pasted = Win32.SendCtrlV();
-        if (!pasted)
-        {
-            AppLogger.Status("插入", $"SendCtrlV 失败 (err={Win32.LastSendInputError})");
-            // 某些环境下 SendInput 可能被限制；尝试 SendKeys 与 WM_PASTE 兜底。
-            try
-            {
-                SendKeys.SendWait("^v");
-                pasted = true;
-            }
-            catch (Exception ex)
-            {
-                AppLogger.Status("插入", $"SendKeys 失败: {ex.Message}");
-            }
-        }
-
-        if (!pasted)
-        {
-            var ok = Win32.SendPasteMessage(targetWindow);
-            if (!ok)
-            {
-                AppLogger.Status("插入", "WM_PASTE 失败");
-            }
-            pasted = ok;
-        }
-
-        // 给目标应用一点时间完成粘贴，再恢复剪贴板，尽量不打扰用户。
-        try
-        {
-            await Task.Delay(250, ct);
-        }
-        catch
-        {
-            // ignore
-        }
-
-        if (backup is null) return pasted;
-        try
-        {
-            Clipboard.SetDataObject(backup);
-        }
-        catch
-        {
-            // ignore
-        }
-
-        return pasted;
+        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -249,24 +161,14 @@ public sealed class TextInserter
             await InsertTextAsync(" ", ct).ConfigureAwait(true);
         }
 
-        private async Task InsertTextAsync(string text, CancellationToken ct)
+        private Task InsertTextAsync(string text, CancellationToken ct)
         {
-            if (string.IsNullOrEmpty(text)) return;
+            if (string.IsNullOrEmpty(text)) return Task.CompletedTask;
 
-            if (_owner._mode == InsertMode.Clipboard)
-            {
-                // 强制走剪贴板粘贴，避免某些应用拦截 Unicode SendInput
-                var ok = await InsertByClipboardAsync(_targetWindow, text, ct).ConfigureAwait(true);
-                if (!ok)
-                {
-                    LogInsert("剪贴板粘贴失败");
-                }
-                return;
-            }
-
-            // 流式时优先使用 SendInput，避免频繁污染剪贴板。
-            if (Win32.SendUnicodeText(text)) return;
+            // 流式时使用 SendInput。
+            if (Win32.SendUnicodeText(text)) return Task.CompletedTask;
             LogInsert($"SendInput 失败（长度={text.Length}，err={Win32.LastSendInputError}）");
+            return Task.CompletedTask;
         }
 
         private void LogInsert(string message)
