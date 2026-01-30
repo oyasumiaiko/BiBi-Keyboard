@@ -6,6 +6,7 @@
     <UseWinUI>true</UseWinUI>
     <WindowsPackageType>None</WindowsPackageType>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
@@ -16,5 +17,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\\BiBiVoiceWin.Shared\\BiBiVoiceWin.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Assets\app.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 </Project>

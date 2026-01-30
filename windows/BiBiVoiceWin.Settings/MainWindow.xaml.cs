@@ -1,18 +1,25 @@
 using System.Diagnostics;
+using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Windowing;
+using Windows.UI;
+using WinRT.Interop;
 
 namespace BiBiVoiceWin.Settings;
 
 public sealed partial class MainWindow : Window
 {
     private readonly SettingsViewModel _viewModel = new();
+    private AppWindowTitleBar? _titleBar;
 
     public MainWindow()
     {
         InitializeComponent();
+        ConfigureTitleBar();
         Root.DataContext = _viewModel;
         Root.AddHandler(UIElement.PointerWheelChangedEvent, new PointerEventHandler(Root_PointerWheelChanged), true);
+        Root.ActualThemeChanged += (_, _) => ApplyTitleBarTheme();
         try
         {
             _viewModel.Load();
@@ -34,6 +41,69 @@ public sealed partial class MainWindow : Window
         var next = MainScroll.VerticalOffset - delta;
         MainScroll.ChangeView(null, next, null, disableAnimation: true);
         e.Handled = true;
+    }
+
+    private void ConfigureTitleBar()
+    {
+        try
+        {
+            ExtendsContentIntoTitleBar = true;
+            SetTitleBar(AppTitleBar);
+
+            var hWnd = WindowNative.GetWindowHandle(this);
+            var windowId = Win32Interop.GetWindowIdFromWindow(hWnd);
+            var appWindow = AppWindow.GetFromWindowId(windowId);
+
+            // 设置窗口图标，避免显示默认程序图标。
+            var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico");
+            if (File.Exists(iconPath))
+            {
+                appWindow.SetIcon(iconPath);
+            }
+
+            if (AppWindowTitleBar.IsCustomizationSupported())
+            {
+                _titleBar = appWindow.TitleBar;
+                _titleBar.ExtendsContentIntoTitleBar = true;
+                UpdateTitleBarInsets();
+                ApplyTitleBarTheme();
+            }
+        }
+        catch (Exception ex)
+        {
+            SettingsLog.Write("ConfigureTitleBar failed", ex);
+        }
+    }
+
+    private void UpdateTitleBarInsets()
+    {
+        if (_titleBar is null) return;
+        AppTitleBar.Margin = new Thickness(_titleBar.LeftInset, 0, _titleBar.RightInset, 0);
+    }
+
+    private void ApplyTitleBarTheme()
+    {
+        if (_titleBar is null) return;
+        var isDark = Root.ActualTheme == ElementTheme.Dark;
+
+        var foreground = isDark ? Colors.White : Colors.Black;
+        var inactiveForeground = isDark ? Colors.Gray : Colors.DarkGray;
+        var hoverBg = isDark ? Color.FromArgb(24, 255, 255, 255) : Color.FromArgb(24, 0, 0, 0);
+        var pressedBg = isDark ? Color.FromArgb(40, 255, 255, 255) : Color.FromArgb(40, 0, 0, 0);
+
+        _titleBar.ForegroundColor = foreground;
+        _titleBar.InactiveForegroundColor = inactiveForeground;
+        _titleBar.BackgroundColor = Colors.Transparent;
+        _titleBar.InactiveBackgroundColor = Colors.Transparent;
+
+        _titleBar.ButtonForegroundColor = foreground;
+        _titleBar.ButtonInactiveForegroundColor = inactiveForeground;
+        _titleBar.ButtonBackgroundColor = Colors.Transparent;
+        _titleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
+        _titleBar.ButtonHoverBackgroundColor = hoverBg;
+        _titleBar.ButtonHoverForegroundColor = foreground;
+        _titleBar.ButtonPressedBackgroundColor = pressedBg;
+        _titleBar.ButtonPressedForegroundColor = foreground;
     }
 
 
