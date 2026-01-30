@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Input;
 
 namespace BiBiVoiceWin.Settings;
 
@@ -11,6 +12,7 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
         Root.DataContext = _viewModel;
+        Root.AddHandler(UIElement.PointerWheelChangedEvent, new PointerEventHandler(Root_PointerWheelChanged), true);
         try
         {
             _viewModel.Load();
@@ -21,6 +23,19 @@ public sealed partial class MainWindow : Window
             StatusText.Text = "加载配置失败，已写入日志";
         }
     }
+
+    private void Root_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
+    {
+        if (MainScroll is null) return;
+        var point = e.GetCurrentPoint(MainScroll);
+        var delta = point.Properties.MouseWheelDelta;
+        if (delta == 0) return;
+
+        var next = MainScroll.VerticalOffset - delta;
+        MainScroll.ChangeView(null, next, null, disableAnimation: true);
+        e.Handled = true;
+    }
+
 
     private void Reload_Click(object sender, RoutedEventArgs e)
     {

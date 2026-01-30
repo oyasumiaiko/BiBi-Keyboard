@@ -22,7 +22,13 @@
 
         <TextBlock Grid.Row="1" Text="{Binding ConfigPath}" Margin="0,8,0,8" />
 
-        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer x:Name="MainScroll"
+                      Grid.Row="2"
+                      VerticalScrollBarVisibility="Auto"
+                      VerticalScrollMode="Enabled"
+                      IsVerticalScrollChainingEnabled="True"
+                      IsVerticalRailEnabled="True"
+                      IsScrollInertiaEnabled="True">
             <StackPanel Spacing="16">
                 <TextBlock Text="基础" FontWeight="SemiBold" />
                 <TextBox Header="Hotkey" Text="{Binding Hotkey, Mode=TwoWay}" />
