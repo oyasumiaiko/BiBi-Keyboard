@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Windowing;
 using Windows.UI;
 using WinRT.Interop;
@@ -19,7 +20,12 @@ public sealed partial class MainWindow : Window
         ConfigureTitleBar();
         Root.DataContext = _viewModel;
         Root.AddHandler(UIElement.PointerWheelChangedEvent, new PointerEventHandler(Root_PointerWheelChanged), true);
-        Root.ActualThemeChanged += (_, _) => ApplyTitleBarTheme();
+        Root.ActualThemeChanged += (_, _) =>
+        {
+            ApplyTitleBarTheme();
+            ApplyCardTheme();
+        };
+        ApplyCardTheme();
         try
         {
             _viewModel.Load();
@@ -107,6 +113,20 @@ public sealed partial class MainWindow : Window
         _titleBar.ButtonHoverForegroundColor = foreground;
         _titleBar.ButtonPressedBackgroundColor = pressedBg;
         _titleBar.ButtonPressedForegroundColor = foreground;
+    }
+
+    private void ApplyCardTheme()
+    {
+        var isDark = Root.ActualTheme == ElementTheme.Dark;
+        var cardBg = isDark
+            ? Color.FromArgb(255, 31, 31, 31)
+            : Color.FromArgb(255, 246, 246, 246);
+        var cardBorder = isDark
+            ? Color.FromArgb(255, 42, 42, 42)
+            : Color.FromArgb(255, 224, 224, 224);
+
+        Root.Resources["CardBackgroundBrush"] = new SolidColorBrush(cardBg);
+        Root.Resources["CardBorderBrush"] = new SolidColorBrush(cardBorder);
     }
 
 

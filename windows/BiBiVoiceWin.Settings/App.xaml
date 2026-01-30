@@ -8,6 +8,31 @@
             <ResourceDictionary.MergedDictionaries>
                 <controls:XamlControlsResources />
             </ResourceDictionary.MergedDictionaries>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="CardBackgroundBrush" Color="#F6F6F6" />
+                    <SolidColorBrush x:Key="CardBorderBrush" Color="#E0E0E0" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="CardBackgroundBrush" Color="#1F1F1F" />
+                    <SolidColorBrush x:Key="CardBorderBrush" Color="#2A2A2A" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+            <SolidColorBrush x:Key="CardBackgroundBrush" Color="#F6F6F6" />
+            <SolidColorBrush x:Key="CardBorderBrush" Color="#E0E0E0" />
+            <Style x:Key="CardStyle" TargetType="Border">
+                <Setter Property="Background" Value="{ThemeResource CardBackgroundBrush}" />
+                <Setter Property="BorderBrush" Value="{ThemeResource CardBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="Padding" Value="12" />
+            </Style>
+            <Style x:Key="SectionHeaderTextStyle" TargetType="TextBlock">
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="FontSize" Value="14" />
+                <Setter Property="Margin" Value="0,0,0,4" />
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>
