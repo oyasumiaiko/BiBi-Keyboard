@@ -33,6 +33,9 @@ internal static class Win32
     [DllImport("user32.dll", SetLastError = true)]
     public static extern int GetWindowTextLength(IntPtr hWnd);
 
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
     [DllImport("user32.dll")]
     public static extern bool SetForegroundWindow(IntPtr hWnd);
 
@@ -56,6 +59,21 @@ internal static class Win32
         var read = GetWindowText(hWnd, sb, sb.Capacity);
         if (read <= 0) return "";
         return sb.ToString();
+    }
+
+    public static string GetWindowClassName(IntPtr hWnd)
+    {
+        if (hWnd == IntPtr.Zero) return "";
+        var sb = new StringBuilder(256);
+        var read = GetClassName(hWnd, sb, sb.Capacity);
+        if (read <= 0) return "";
+        return sb.ToString();
+    }
+
+    public static uint GetWindowProcessId(IntPtr hWnd)
+    {
+        if (hWnd == IntPtr.Zero) return 0;
+        return GetWindowThreadProcessId(hWnd, out var pid) > 0 ? pid : 0;
     }
 
     public static bool SendUnicodeText(string text)
