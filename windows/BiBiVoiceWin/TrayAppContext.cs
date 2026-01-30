@@ -57,6 +57,8 @@ public sealed class TrayAppContext : ApplicationContext
     private Queue<byte[]>? _preRollChunks;
     private int _preRollBytes;
     private int _preRollMaxBytes;
+    private DateTimeOffset _transcribeStartedAt = DateTimeOffset.MinValue;
+    private static readonly TimeSpan TranscribeWatchdogTimeout = TimeSpan.FromSeconds(45);
 
     // 按住说话
     private Keys _holdKey = Keys.Space;
@@ -129,6 +131,7 @@ public sealed class TrayAppContext : ApplicationContext
             await BeginStopAndFinalizeAsync((AutoStopReason)reason);
         };
         _uiTimer.Start();
+        _uiTimer.Tick += (_, _) => CheckTranscribeWatchdog();
 
         // 按住说话（优先）或全局热键（兜底）
         var holdErr = "";
@@ -259,6 +262,7 @@ public sealed class TrayAppContext : ApplicationContext
         if (_state != AppState.Recording) return;
 
         _state = AppState.Transcribing;
+        _transcribeStartedAt = DateTimeOffset.UtcNow;
         _toggleItem.Text = "收尾中…";
         _tray.Text = "BiBiVoiceWin - 收尾中";
         UpdateTrayIcon();
@@ -321,9 +325,11 @@ public sealed class TrayAppContext : ApplicationContext
             CleanupStreamingSession();
             ResetPreRollBuffer();
             _state = AppState.Idle;
+            _transcribeStartedAt = DateTimeOffset.MinValue;
             _toggleItem.Text = "开始录音";
             _tray.Text = "BiBiVoiceWin";
             UpdateTrayIcon();
+            ResetHoldState();
         }
     }
 
@@ -335,6 +341,7 @@ public sealed class TrayAppContext : ApplicationContext
         _toggleItem.Text = "开始录音";
         _tray.Text = "BiBiVoiceWin";
         UpdateTrayIcon();
+        ResetHoldState();
 
         _workCts?.Cancel();
         _workCts?.Dispose();
@@ -607,6 +614,41 @@ public sealed class TrayAppContext : ApplicationContext
         {
             // 兜底：失败时保持现有图标
         }
+    }
+
+    private void ResetHoldState()
+    {
+        _holdKeyDown = false;
+        _holdTriggered = false;
+        StopHoldTimer();
+    }
+
+    private void CheckTranscribeWatchdog()
+    {
+        if (_state != AppState.Transcribing) return;
+        if (_transcribeStartedAt == DateTimeOffset.MinValue) return;
+        if (DateTimeOffset.UtcNow - _transcribeStartedAt < TranscribeWatchdogTimeout) return;
+
+        // 兜底：识别流程卡住时强制清理，避免托盘状态一直亮且无法继续使用。
+        LogStatus("识别超时", $"超过 {TranscribeWatchdogTimeout.TotalSeconds:0} 秒未完成，已强制重置");
+        ForceReset();
+    }
+
+    private void ForceReset()
+    {
+        try { _workCts?.Cancel(); } catch { }
+        try { _workCts?.Dispose(); } catch { }
+        _workCts = null;
+
+        CancelStreamingSession();
+        CleanupStreamingSession();
+        ResetPreRollBuffer();
+        _state = AppState.Idle;
+        _transcribeStartedAt = DateTimeOffset.MinValue;
+        _toggleItem.Text = "开始录音";
+        _tray.Text = "BiBiVoiceWin";
+        UpdateTrayIcon();
+        ResetHoldState();
     }
 
     private void OpenConfigFile()
