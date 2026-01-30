@@ -196,18 +196,18 @@ public sealed partial class MainWindow : Window
     private void Reload_Click(object sender, RoutedEventArgs e)
     {
         _viewModel.Load();
-        StatusText.Text = "已重新加载";
+        if (StatusText is not null) StatusText.Text = "已重新加载";
     }
 
     private void Save_Click(object sender, RoutedEventArgs e)
     {
         if (_viewModel.Save(out var error))
         {
-            StatusText.Text = "已保存";
+            if (StatusText is not null) StatusText.Text = "已保存";
             return;
         }
 
-        StatusText.Text = $"保存失败：{error}";
+        if (StatusText is not null) StatusText.Text = $"保存失败：{error}";
     }
 
     private void OpenConfig_Click(object sender, RoutedEventArgs e)
@@ -215,7 +215,7 @@ public sealed partial class MainWindow : Window
         var path = _viewModel.ConfigPath;
         if (string.IsNullOrWhiteSpace(path))
         {
-            StatusText.Text = "配置路径为空";
+            if (StatusText is not null) StatusText.Text = "配置路径为空";
             return;
         }
 
@@ -229,7 +229,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            StatusText.Text = $"打开失败：{ex.Message}";
+            if (StatusText is not null) StatusText.Text = $"打开失败：{ex.Message}";
         }
     }
 }

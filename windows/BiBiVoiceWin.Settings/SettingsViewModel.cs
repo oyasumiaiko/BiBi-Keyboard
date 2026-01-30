@@ -6,6 +6,8 @@ namespace BiBiVoiceWin.Settings;
 
 public sealed class SettingsViewModel : INotifyPropertyChanged
 {
+    private const int AutoSaveDelayMs = 500;
+
     private string _configPath = "";
     private string _hotkey = "Space";
     private string _insertMode = "SendInput";
@@ -40,8 +42,19 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     private double _minUpdateChars = 8;
     private double _maxSummaryChars = 200;
     private double _ttlMinutes = 240;
+    private bool _isLoading;
+    private System.Threading.Timer? _autoSaveTimer;
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    public SettingsViewModel()
+    {
+        PropertyChanged += (_, _) =>
+        {
+            if (_isLoading) return;
+            ScheduleAutoSave();
+        };
+    }
 
     public string ConfigPath
     {
@@ -237,6 +250,7 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
 
     public void Load()
     {
+        _isLoading = true;
         var (cfg, path, _) = AppConfig.LoadOrCreate();
         ConfigPath = path;
 
@@ -273,6 +287,7 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         MinUpdateChars = cfg.DialogContext.MinUpdateChars;
         MaxSummaryChars = cfg.DialogContext.MaxSummaryChars;
         TtlMinutes = cfg.DialogContext.TtlMinutes;
+        _isLoading = false;
     }
 
     public bool Save(out string error)
@@ -334,6 +349,18 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         {
             error = ex.Message;
             return false;
+        }
+    }
+
+    private void ScheduleAutoSave()
+    {
+        lock (this)
+        {
+            _autoSaveTimer?.Dispose();
+            _autoSaveTimer = new System.Threading.Timer(_ =>
+            {
+                Save(out var _);
+            }, null, AutoSaveDelayMs, Timeout.Infinite);
         }
     }
 
