@@ -45,63 +45,74 @@
                 <StackPanel Spacing="16">
                     <Border Style="{StaticResource CardStyle}">
                         <StackPanel Spacing="8">
-                            <TextBlock Text="基础" Style="{StaticResource SectionHeaderTextStyle}" />
-                            <TextBox Header="Hotkey" Text="{Binding Hotkey, Mode=TwoWay}" />
-                            <TextBox Header="InsertMode" Text="{Binding InsertMode, Mode=TwoWay}" />
-                            <ToggleSwitch Header="AppendSpace" IsOn="{Binding AppendSpace, Mode=TwoWay}" />
-                        </StackPanel>
-                    </Border>
-
-                    <Border Style="{StaticResource CardStyle}">
-                        <StackPanel Spacing="8">
-                            <TextBlock Text="按住说话" Style="{StaticResource SectionHeaderTextStyle}" />
-                            <ToggleSwitch Header="HoldToTalkEnabled" IsOn="{Binding HoldToTalkEnabled, Mode=TwoWay}" />
-                            <TextBox Header="HoldToTalkKey" Text="{Binding HoldToTalkKey, Mode=TwoWay}" />
-                            <NumberBox Header="HoldToTalkMinHoldMs" Value="{Binding HoldToTalkMinHoldMs, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                            <TextBlock Text="常用" Style="{StaticResource SectionHeaderTextStyle}" />
+                            <ToggleSwitch Header="按住说话" IsOn="{Binding HoldToTalkEnabled, Mode=TwoWay}" />
+                            <TextBox Header="按住说话按键" Text="{Binding HoldToTalkKey, Mode=TwoWay}" />
+                            <NumberBox Header="长按阈值（毫秒）" Value="{Binding HoldToTalkMinHoldMs, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                            <TextBox Header="单击热键（仅在关闭按住说话时生效）" Text="{Binding Hotkey, Mode=TwoWay}" />
                         </StackPanel>
                     </Border>
 
                     <Border Style="{StaticResource CardStyle}">
                         <StackPanel Spacing="8">
                             <TextBlock Text="录音" Style="{StaticResource SectionHeaderTextStyle}" />
-                            <NumberBox Header="TargetSampleRate" Value="{Binding TargetSampleRate, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
-                            <NumberBox Header="MaxRecordSeconds" Value="{Binding MaxRecordSeconds, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
-                            <ToggleSwitch Header="AutoStopEnabled" IsOn="{Binding AutoStopEnabled, Mode=TwoWay}" />
-                            <NumberBox Header="AutoStopSilenceMs" Value="{Binding AutoStopSilenceMs, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
-                            <NumberBox Header="AutoStopThresholdDb" Value="{Binding AutoStopThresholdDb, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                            <NumberBox Header="最大录音时长（秒）" Value="{Binding MaxRecordSeconds, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                            <ToggleSwitch Header="启用静音判停" IsOn="{Binding AutoStopEnabled, Mode=TwoWay}" />
+                            <NumberBox Header="静音判停时长（毫秒）" Value="{Binding AutoStopSilenceMs, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                            <NumberBox Header="静音阈值（dB）" Value="{Binding AutoStopThresholdDb, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
                         </StackPanel>
                     </Border>
 
                     <Border Style="{StaticResource CardStyle}">
                         <StackPanel Spacing="8">
-                            <TextBlock Text="火山 ASR" Style="{StaticResource SectionHeaderTextStyle}" />
-                            <TextBox Header="Volc.Endpoint" Text="{Binding VolcEndpoint, Mode=TwoWay}" />
-                            <TextBox Header="Volc.AppKey" Text="{Binding VolcAppKey, Mode=TwoWay}" />
-                            <TextBox Header="Volc.AccessKey" Text="{Binding VolcAccessKey, Mode=TwoWay}" />
-                            <TextBox Header="Volc.ResourceId" Text="{Binding VolcResourceId, Mode=TwoWay}" />
-                            <ToggleSwitch Header="Volc.EnableDdc" IsOn="{Binding VolcEnableDdc, Mode=TwoWay}" />
-                            <ToggleSwitch Header="Volc.EnableNonstream" IsOn="{Binding VolcEnableNonstream, Mode=TwoWay}" />
-                            <ToggleSwitch Header="Volc.EnableVad" IsOn="{Binding VolcEnableVad, Mode=TwoWay}" />
-                            <NumberBox Header="Volc.VadEndWindowSizeMs" Value="{Binding VolcVadEndWindowSizeMs, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
-                            <NumberBox Header="Volc.VadForceToSpeechTimeMs" Value="{Binding VolcVadForceToSpeechTimeMs, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
-                            <TextBox Header="Volc.Language" Text="{Binding VolcLanguage, Mode=TwoWay}" />
+                            <TextBlock Text="语音识别" Style="{StaticResource SectionHeaderTextStyle}" />
+                            <TextBox Header="AppKey（App ID）" Text="{Binding VolcAppKey, Mode=TwoWay}" />
+                            <TextBox Header="AccessKey（Access Token）" Text="{Binding VolcAccessKey, Mode=TwoWay}" />
+                            <TextBox Header="ResourceId" Text="{Binding VolcResourceId, Mode=TwoWay}" />
+                            <ToggleSwitch Header="开启语义顺滑（推荐）" IsOn="{Binding VolcEnableDdc, Mode=TwoWay}" />
+                            <ToggleSwitch Header="开启二遍识别（推荐）" IsOn="{Binding VolcEnableNonstream, Mode=TwoWay}" />
                         </StackPanel>
                     </Border>
 
-                    <Border Style="{StaticResource CardStyle}">
-                        <StackPanel Spacing="8">
-                            <TextBlock Text="对话上下文" Style="{StaticResource SectionHeaderTextStyle}" />
-                            <ToggleSwitch Header="DialogContext.Enabled" IsOn="{Binding DialogEnabled, Mode=TwoWay}" />
-                            <TextBox Header="DialogContext.LlmEndpoint" Text="{Binding LlmEndpoint, Mode=TwoWay}" />
-                            <TextBox Header="DialogContext.LlmApiKey" Text="{Binding LlmApiKey, Mode=TwoWay}" />
-                            <TextBox Header="DialogContext.LlmModel" Text="{Binding LlmModel, Mode=TwoWay}" />
-                            <NumberBox Header="DialogContext.LlmTemperature" Value="{Binding LlmTemperature, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
-                            <NumberBox Header="DialogContext.SourceMaxChars" Value="{Binding SourceMaxChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
-                            <NumberBox Header="DialogContext.MinUpdateChars" Value="{Binding MinUpdateChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
-                            <NumberBox Header="DialogContext.MaxSummaryChars" Value="{Binding MaxSummaryChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
-                            <NumberBox Header="DialogContext.TtlMinutes" Value="{Binding TtlMinutes, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                    <Expander Header="高级设置（不确定就别动）" IsExpanded="False">
+                        <StackPanel Spacing="12">
+                            <Border Style="{StaticResource CardStyle}">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="输入行为" Style="{StaticResource SectionHeaderTextStyle}" />
+                                    <TextBox Header="插入方式（目前仅支持 SendInput）" Text="{Binding InsertMode, Mode=TwoWay}" />
+                                    <ToggleSwitch Header="识别完成自动追加空格" IsOn="{Binding AppendSpace, Mode=TwoWay}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource CardStyle}">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="识别高级" Style="{StaticResource SectionHeaderTextStyle}" />
+                                    <TextBox Header="Endpoint" Text="{Binding VolcEndpoint, Mode=TwoWay}" />
+                                    <TextBox Header="Language（可选）" Text="{Binding VolcLanguage, Mode=TwoWay}" />
+                                    <ToggleSwitch Header="启用 VAD 分句" IsOn="{Binding VolcEnableVad, Mode=TwoWay}" />
+                                    <NumberBox Header="VAD 结束窗口（毫秒）" Value="{Binding VolcVadEndWindowSizeMs, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                                    <NumberBox Header="VAD 强制语音阈值（毫秒）" Value="{Binding VolcVadForceToSpeechTimeMs, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                                    <NumberBox Header="收尾卡死自动重置（秒）" Value="{Binding TranscribeWatchdogSeconds, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                                    <NumberBox Header="采样率（Hz）" Value="{Binding TargetSampleRate, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource CardStyle}">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="对话上下文" Style="{StaticResource SectionHeaderTextStyle}" />
+                                    <ToggleSwitch Header="启用对话上下文" IsOn="{Binding DialogEnabled, Mode=TwoWay}" />
+                                    <TextBox Header="LLM Endpoint" Text="{Binding LlmEndpoint, Mode=TwoWay}" />
+                                    <TextBox Header="LLM API Key" Text="{Binding LlmApiKey, Mode=TwoWay}" />
+                                    <TextBox Header="LLM Model" Text="{Binding LlmModel, Mode=TwoWay}" />
+                                    <NumberBox Header="Temperature" Value="{Binding LlmTemperature, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                                    <NumberBox Header="SourceMaxChars" Value="{Binding SourceMaxChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                                    <NumberBox Header="MinUpdateChars" Value="{Binding MinUpdateChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                                    <NumberBox Header="MaxSummaryChars" Value="{Binding MaxSummaryChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                                    <NumberBox Header="TTL（分钟）" Value="{Binding TtlMinutes, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
-                    </Border>
+                    </Expander>
                 </StackPanel>
             </ScrollViewer>
         </Grid>

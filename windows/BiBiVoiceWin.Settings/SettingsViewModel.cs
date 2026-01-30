@@ -18,6 +18,7 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     private bool _autoStopEnabled = true;
     private double _autoStopSilenceMs = 1200;
     private double _autoStopThresholdDb = -35;
+    private double _transcribeWatchdogSeconds = 15;
 
     private string _volcEndpoint = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async";
     private string _volcAppKey = "";
@@ -112,6 +113,12 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     {
         get => _autoStopThresholdDb;
         set => SetField(ref _autoStopThresholdDb, value);
+    }
+
+    public double TranscribeWatchdogSeconds
+    {
+        get => _transcribeWatchdogSeconds;
+        set => SetField(ref _transcribeWatchdogSeconds, value);
     }
 
     public string VolcEndpoint
@@ -244,6 +251,7 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         AutoStopEnabled = cfg.AutoStopEnabled;
         AutoStopSilenceMs = cfg.AutoStopSilenceMs;
         AutoStopThresholdDb = cfg.AutoStopThresholdDb;
+        TranscribeWatchdogSeconds = cfg.TranscribeWatchdogSeconds;
 
         VolcEndpoint = cfg.Volc.Endpoint;
         VolcAppKey = cfg.Volc.AppKey;
@@ -285,6 +293,7 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
                 AutoStopEnabled = AutoStopEnabled,
                 AutoStopSilenceMs = ToInt(AutoStopSilenceMs, 1200),
                 AutoStopThresholdDb = AutoStopThresholdDb,
+                TranscribeWatchdogSeconds = ToInt(TranscribeWatchdogSeconds, 15),
                 Volc = new VolcConfig
                 {
                     Endpoint = VolcEndpoint.Trim(),

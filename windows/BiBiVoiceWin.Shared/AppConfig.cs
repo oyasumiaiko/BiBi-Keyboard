@@ -18,6 +18,7 @@ public sealed class AppConfig
     public bool AutoStopEnabled { get; init; } = true;
     public int AutoStopSilenceMs { get; init; } = 1200;
     public double AutoStopThresholdDb { get; init; } = -35;
+    public int TranscribeWatchdogSeconds { get; init; } = 15;
 
     public VolcConfig Volc { get; init; } = new();
     public DialogContextConfig DialogContext { get; init; } = new();
@@ -80,6 +81,7 @@ public sealed class AppConfig
             AutoStopEnabled = true,
             AutoStopSilenceMs = 1200,
             AutoStopThresholdDb = -35,
+            TranscribeWatchdogSeconds = 15,
             Volc = new VolcConfig
             {
                 Endpoint = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async",
