@@ -43,3 +43,14 @@
 - 默认启用火山“语义顺滑”（`EnableDdc`）与“二遍识别”（`EnableNonstream`）以提升最终准确率；如需更原始结果可在配置中关闭。
 - 如需启用 VAD 判停分句，可设置 `EnableVad=true`，并使用推荐参数 `VadEndWindowSizeMs=800`、`VadForceToSpeechTimeMs=1000`。
 - 如需给火山 `dialog_ctx` 提供上下文，可开启 `DialogContext.Enabled` 并配置 LLM（用于摘要更新），每个窗口会维护独立的上下文摘要。
+
+## 设置界面（WinUI）
+
+如果不想手动编辑 `config.json`，可以使用 WinUI 设置界面：
+
+```
+dotnet run --project .\windows\BiBiVoiceWin.Settings\BiBiVoiceWin.Settings.csproj
+```
+
+- 保存后会写回同一个 `config.json`，并补齐缺失字段。
+- 若系统缺少 Windows App SDK 运行时，请先安装后再启动设置界面。

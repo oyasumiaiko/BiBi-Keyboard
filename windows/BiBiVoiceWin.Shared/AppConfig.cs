@@ -57,6 +57,14 @@ public sealed class AppConfig
         return (config, configPath, false);
     }
 
+    public static void Save(AppConfig config, string path)
+    {
+        var dir = Path.GetDirectoryName(path);
+        if (!string.IsNullOrWhiteSpace(dir)) Directory.CreateDirectory(dir);
+        var json = JsonSerializer.Serialize(config, JsonOptions);
+        File.WriteAllText(path, json);
+    }
+
     private static AppConfig CreateExample()
     {
         return new AppConfig
