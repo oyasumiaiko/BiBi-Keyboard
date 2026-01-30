@@ -58,7 +58,9 @@ public sealed class TrayAppContext : ApplicationContext
     private int _preRollBytes;
     private int _preRollMaxBytes;
     private DateTimeOffset _transcribeStartedAt = DateTimeOffset.MinValue;
-    private static readonly TimeSpan TranscribeWatchdogTimeout = TimeSpan.FromSeconds(15);
+    private readonly TimeSpan _transcribeWatchdogTimeout;
+    private const int MinTranscribeWatchdogSeconds = 5;
+    private const int MaxTranscribeWatchdogSeconds = 120;
     private bool _finalReceived;
     private bool _restartAfterFinalize;
 
@@ -81,6 +83,9 @@ public sealed class TrayAppContext : ApplicationContext
         _cfg = cfg;
         _configPath = configPath;
         _holdMinMs = Math.Max(80, _cfg.HoldToTalkMinHoldMs);
+        var watchdogSeconds = _cfg.TranscribeWatchdogSeconds <= 0 ? 15 : _cfg.TranscribeWatchdogSeconds;
+        watchdogSeconds = Math.Clamp(watchdogSeconds, MinTranscribeWatchdogSeconds, MaxTranscribeWatchdogSeconds);
+        _transcribeWatchdogTimeout = TimeSpan.FromSeconds(watchdogSeconds);
 
         _recorder = new AudioRecorder();
         _recorder.AutoStopRequested += reason =>
@@ -675,10 +680,10 @@ public sealed class TrayAppContext : ApplicationContext
     {
         if (_state != AppState.Transcribing) return;
         if (_transcribeStartedAt == DateTimeOffset.MinValue) return;
-        if (DateTimeOffset.UtcNow - _transcribeStartedAt < TranscribeWatchdogTimeout) return;
+        if (DateTimeOffset.UtcNow - _transcribeStartedAt < _transcribeWatchdogTimeout) return;
 
         // 兜底：识别流程卡住时强制清理，避免托盘状态一直亮且无法继续使用。
-        LogStatus("识别超时", $"超过 {TranscribeWatchdogTimeout.TotalSeconds:0} 秒未完成，已强制重置");
+        LogStatus("识别超时", $"超过 {_transcribeWatchdogTimeout.TotalSeconds:0} 秒未完成，已强制重置");
         ForceReset();
     }
 
