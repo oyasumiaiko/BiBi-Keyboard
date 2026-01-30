@@ -58,7 +58,9 @@ public sealed class TrayAppContext : ApplicationContext
     private int _preRollBytes;
     private int _preRollMaxBytes;
     private DateTimeOffset _transcribeStartedAt = DateTimeOffset.MinValue;
-    private static readonly TimeSpan TranscribeWatchdogTimeout = TimeSpan.FromSeconds(45);
+    private static readonly TimeSpan TranscribeWatchdogTimeout = TimeSpan.FromSeconds(15);
+    private bool _finalReceived;
+    private bool _restartAfterFinalize;
 
     // 按住说话
     private Keys _holdKey = Keys.Space;
@@ -205,6 +207,8 @@ public sealed class TrayAppContext : ApplicationContext
         if (_state != AppState.Idle) return;
 
         ResetPreRollBuffer();
+        _finalReceived = false;
+        _restartAfterFinalize = false;
         _targetWindow = Win32.GetForegroundWindow();
         var title = Win32.GetWindowTitle(_targetWindow);
         LogStatus("目标窗口", $"0x{_targetWindow.ToInt64():X} {title}");
@@ -329,7 +333,10 @@ public sealed class TrayAppContext : ApplicationContext
             _toggleItem.Text = "开始录音";
             _tray.Text = "BiBiVoiceWin";
             UpdateTrayIcon();
-            ResetHoldState();
+            if (!TryRestartAfterFinalize())
+            {
+                ResetHoldState();
+            }
         }
     }
 
@@ -500,6 +507,7 @@ public sealed class TrayAppContext : ApplicationContext
     {
         if (isFinal)
         {
+            _finalReceived = true;
             LogStatus("识别完成", $"最终文本长度 {text.Length}");
         }
         else if (!_partialLogged)
@@ -554,6 +562,28 @@ public sealed class TrayAppContext : ApplicationContext
 
             _holdKeyDown = true;
             _holdTriggered = false;
+
+            if (_state == AppState.Transcribing)
+            {
+                if (_finalReceived)
+                {
+                    // 已收到最终结果：等待收尾完成后自动继续
+                    _restartAfterFinalize = true;
+                    LogStatus("收尾中", "已收到最终结果，完成后继续录音");
+                    return;
+                }
+
+                // 还未收到最终结果：强制中断本次收尾并立即开始新会话
+                LogStatus("收尾中", "未收到最终结果，已强制中断并重新开始");
+                ForceReset();
+                // ForceReset 会清掉按键状态，这里重新标记并启动录音
+                _holdKeyDown = true;
+                _holdTriggered = false;
+                StartRecording(holdToTalkSession: true, deferStreaming: true);
+                StartHoldTimer();
+                return;
+            }
+
             PostToUiAction(() => StartRecording(holdToTalkSession: true, deferStreaming: true));
             StartHoldTimer();
             return;
@@ -563,6 +593,12 @@ public sealed class TrayAppContext : ApplicationContext
         {
             _holdKeyDown = false;
             StopHoldTimer();
+
+            if (_state == AppState.Transcribing)
+            {
+                // 收尾中抬键只更新状态，不触发 Stop/Discard
+                return;
+            }
 
             if (_holdTriggered)
             {
@@ -621,6 +657,18 @@ public sealed class TrayAppContext : ApplicationContext
         _holdKeyDown = false;
         _holdTriggered = false;
         StopHoldTimer();
+    }
+
+    private bool TryRestartAfterFinalize()
+    {
+        if (!_restartAfterFinalize) return false;
+        _restartAfterFinalize = false;
+
+        if (!_holdKeyDown) return false;
+        // 用户仍在按住：进入新一轮录音
+        StartRecording(holdToTalkSession: true, deferStreaming: true);
+        StartHoldTimer();
+        return true;
     }
 
     private void CheckTranscribeWatchdog()
