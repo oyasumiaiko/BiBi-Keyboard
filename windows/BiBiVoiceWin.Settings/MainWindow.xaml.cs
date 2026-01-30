@@ -38,8 +38,11 @@ public sealed partial class MainWindow : Window
         var delta = point.Properties.MouseWheelDelta;
         if (delta == 0) return;
 
+        // 手动滚动时用动画，避免出现“前半段跳、后半段顺”的割裂感。
         var next = MainScroll.VerticalOffset - delta;
-        MainScroll.ChangeView(null, next, null, disableAnimation: true);
+        if (next < 0) next = 0;
+        if (next > MainScroll.ScrollableHeight) next = MainScroll.ScrollableHeight;
+        MainScroll.ChangeView(null, next, null, disableAnimation: false);
         e.Handled = true;
     }
 
