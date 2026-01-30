@@ -10,7 +10,7 @@ public sealed class AppConfig
 
     public bool HoldToTalkEnabled { get; init; } = true;
     public string HoldToTalkKey { get; init; } = "Space";
-    public int HoldToTalkMinHoldMs { get; init; } = 200;
+    public int HoldToTalkMinHoldMs { get; init; } = 500;
 
     public int TargetSampleRate { get; init; } = 16000;
     public int MaxRecordSeconds { get; init; } = 60;
@@ -66,7 +66,7 @@ public sealed class AppConfig
             AppendSpace = false,
             HoldToTalkEnabled = true,
             HoldToTalkKey = "Space",
-            HoldToTalkMinHoldMs = 200,
+            HoldToTalkMinHoldMs = 500,
             TargetSampleRate = 16000,
             MaxRecordSeconds = 60,
             AutoStopEnabled = true,

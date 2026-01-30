@@ -51,6 +51,12 @@ public sealed class TrayAppContext : ApplicationContext
     private int _pendingAutoStopReason = 0;
     private bool _pcmChunkLogged;
     private bool _partialLogged;
+    private bool _streamingStarted;
+    private int _recordSampleRate;
+    private readonly object _pcmLock = new();
+    private Queue<byte[]>? _preRollChunks;
+    private int _preRollBytes;
+    private int _preRollMaxBytes;
 
     // 按住说话
     private Keys _holdKey = Keys.Space;
@@ -191,10 +197,11 @@ public sealed class TrayAppContext : ApplicationContext
         }
     }
 
-    private void StartRecording(bool holdToTalkSession = false)
+    private void StartRecording(bool holdToTalkSession = false, bool deferStreaming = false)
     {
         if (_state != AppState.Idle) return;
 
+        ResetPreRollBuffer();
         _targetWindow = Win32.GetForegroundWindow();
         var title = Win32.GetWindowTitle(_targetWindow);
         LogStatus("目标窗口", $"0x{_targetWindow.ToInt64():X} {title}");
@@ -224,7 +231,17 @@ public sealed class TrayAppContext : ApplicationContext
                 AutoStopSilenceMs: _cfg.AutoStopSilenceMs,
                 AutoStopThresholdDb: _cfg.AutoStopThresholdDb
             );
-            StartStreamingSession(options.TargetSampleRate);
+            _recordSampleRate = options.TargetSampleRate;
+            _streamingStarted = false;
+            if (!deferStreaming)
+            {
+                StartStreamingSession(_recordSampleRate);
+                _streamingStarted = true;
+            }
+            else
+            {
+                InitPreRollBuffer(_recordSampleRate, _holdMinMs);
+            }
             _recorder.Start(options);
         }
         catch (Exception ex)
@@ -302,10 +319,41 @@ public sealed class TrayAppContext : ApplicationContext
         finally
         {
             CleanupStreamingSession();
+            ResetPreRollBuffer();
             _state = AppState.Idle;
             _toggleItem.Text = "开始录音";
             _tray.Text = "BiBiVoiceWin";
             UpdateTrayIcon();
+        }
+    }
+
+    private async Task StopPreRollDiscardAsync()
+    {
+        if (_state != AppState.Recording) return;
+
+        _state = AppState.Idle;
+        _toggleItem.Text = "开始录音";
+        _tray.Text = "BiBiVoiceWin";
+        UpdateTrayIcon();
+
+        _workCts?.Cancel();
+        _workCts?.Dispose();
+        _workCts = new CancellationTokenSource();
+        var ct = _workCts.Token;
+
+        try
+        {
+            await _recorder.StopAsync(ct).ConfigureAwait(true);
+        }
+        catch
+        {
+            // 忽略异常，短按取消录音不需要错误提示
+        }
+        finally
+        {
+            CancelStreamingSession();
+            CleanupStreamingSession();
+            ResetPreRollBuffer();
         }
     }
 
@@ -326,6 +374,55 @@ public sealed class TrayAppContext : ApplicationContext
         LogStatus("流式会话启动", $"Endpoint: {_cfg.Volc.Endpoint} ResourceId: {_cfg.Volc.ResourceId}");
         _asrTask = _asr.TranscribeStreamingAsync(_pcmChannel.Reader, targetSampleRate, OnAsrResult, _streamCts.Token, _dialogContextText);
         UpdateTrayIcon();
+    }
+
+    private void BeginHoldStreaming()
+    {
+        if (_state != AppState.Recording) return;
+        if (_streamingStarted) return;
+        StartStreamingSession(_recordSampleRate);
+        FlushPreRollToChannel();
+    }
+
+    private void InitPreRollBuffer(int sampleRate, int holdMinMs)
+    {
+        lock (_pcmLock)
+        {
+            _preRollChunks = new Queue<byte[]>();
+            _preRollBytes = 0;
+            var bytesPerSecond = Math.Max(1, sampleRate * 2);
+            var targetMs = Math.Max(holdMinMs, 100);
+            _preRollMaxBytes = (int)Math.Ceiling(bytesPerSecond * (targetMs / 1000.0));
+        }
+    }
+
+    private void ResetPreRollBuffer()
+    {
+        lock (_pcmLock)
+        {
+            _preRollChunks?.Clear();
+            _preRollChunks = null;
+            _preRollBytes = 0;
+            _preRollMaxBytes = 0;
+            _streamingStarted = false;
+        }
+    }
+
+    private void FlushPreRollToChannel()
+    {
+        lock (_pcmLock)
+        {
+            _streamingStarted = true;
+            if (_preRollChunks is null) return;
+            var writer = _pcmChannel?.Writer;
+            if (writer is null) return;
+            while (_preRollChunks.Count > 0)
+            {
+                var chunk = _preRollChunks.Dequeue();
+                writer.TryWrite(chunk);
+            }
+            _preRollBytes = 0;
+        }
     }
 
     private void CompleteAudioStream()
@@ -365,15 +462,31 @@ public sealed class TrayAppContext : ApplicationContext
     private void OnPcm16Chunk(byte[] chunk)
     {
         if (_state != AppState.Recording) return;
-        var writer = _pcmChannel?.Writer;
-        if (writer is null) return;
-        if (!_pcmChunkLogged)
+        lock (_pcmLock)
         {
-            _pcmChunkLogged = true;
-            var db = EstimatePcm16Dbfs(chunk);
-            LogStatus("音频流", $"已开始接收 PCM 分片（首包 {chunk.Length} bytes，约 {db:0.0} dBFS）");
+            if (!_streamingStarted)
+            {
+                if (_preRollChunks is null) return;
+                _preRollChunks.Enqueue(chunk);
+                _preRollBytes += chunk.Length;
+                while (_preRollBytes > _preRollMaxBytes && _preRollChunks.Count > 0)
+                {
+                    var drop = _preRollChunks.Dequeue();
+                    _preRollBytes -= drop.Length;
+                }
+                return;
+            }
+
+            var writer = _pcmChannel?.Writer;
+            if (writer is null) return;
+            if (!_pcmChunkLogged)
+            {
+                _pcmChunkLogged = true;
+                var db = EstimatePcm16Dbfs(chunk);
+                LogStatus("音频流", $"已开始接收 PCM 分片（首包 {chunk.Length} bytes，约 {db:0.0} dBFS）");
+            }
+            writer.TryWrite(chunk);
         }
-        writer.TryWrite(chunk);
     }
 
     private void OnAsrResult(string text, bool isFinal)
@@ -425,7 +538,7 @@ public sealed class TrayAppContext : ApplicationContext
 
         if (e.IsKeyDown)
         {
-            // 重复按下（自动重复）直接吞掉
+            // 重复按下（自动重复）直接吞掉，避免长按产生连发空格
             if (_holdKeyDown)
             {
                 e.Suppress = true;
@@ -434,8 +547,8 @@ public sealed class TrayAppContext : ApplicationContext
 
             _holdKeyDown = true;
             _holdTriggered = false;
+            PostToUiAction(() => StartRecording(holdToTalkSession: true, deferStreaming: true));
             StartHoldTimer();
-            e.Suppress = true;
             return;
         }
 
@@ -451,11 +564,9 @@ public sealed class TrayAppContext : ApplicationContext
             }
             else
             {
-                // 视为“短按空格”，补发一个空格
-                Win32.SendUnicodeText(" ");
+                // 未达到长按阈值：停止并丢弃预录音
+                PostToUi(async _ => await StopPreRollDiscardAsync());
             }
-
-            e.Suppress = true;
         }
     }
 
@@ -464,10 +575,14 @@ public sealed class TrayAppContext : ApplicationContext
         _holdTimer?.Dispose();
         _holdTimer = new System.Threading.Timer(_ =>
         {
-            if (!_holdKeyDown || _holdTriggered) return;
-            _holdTriggered = true;
-            // 达到长按阈值 -> 开始录音
-            PostToUiAction(() => StartRecording(holdToTalkSession: true));
+            if (!_holdKeyDown) return;
+            // 达到长按阈值 -> 开始流式识别（包含预录音）
+            PostToUiAction(() =>
+            {
+                if (!_holdKeyDown || _holdTriggered) return;
+                _holdTriggered = true;
+                BeginHoldStreaming();
+            });
         }, null, _holdMinMs, Timeout.Infinite);
     }
 

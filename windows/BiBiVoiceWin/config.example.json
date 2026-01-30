@@ -4,7 +4,7 @@
   "AppendSpace": false,
   "HoldToTalkEnabled": true,
   "HoldToTalkKey": "Space",
-  "HoldToTalkMinHoldMs": 200,
+  "HoldToTalkMinHoldMs": 500,
   "TargetSampleRate": 16000,
   "MaxRecordSeconds": 60,
   "AutoStopEnabled": true,
