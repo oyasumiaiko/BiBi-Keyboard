@@ -35,6 +35,7 @@ public sealed class TrayAppContext : ApplicationContext
     private readonly AudioRecorder _recorder;
     private readonly VolcStreamAsrClient _asr;
     private readonly TextInserter _inserter;
+    private readonly DialogContextManager _dialogContext;
 
     private AppState _state = AppState.Idle;
     private IntPtr _targetWindow = IntPtr.Zero;
@@ -43,6 +44,8 @@ public sealed class TrayAppContext : ApplicationContext
     private Channel<byte[]>? _pcmChannel;
     private Task<string>? _asrTask;
     private TextInserter.StreamingSession? _streamSession;
+    private string _dialogContextKey = "";
+    private string? _dialogContextText;
 
     // 录音线程触发的“建议停止”信号，通过 UI Timer 拉回到 UI 线程执行。
     private int _pendingAutoStopReason = 0;
@@ -81,6 +84,7 @@ public sealed class TrayAppContext : ApplicationContext
 
         _asr = new VolcStreamAsrClient(_cfg.Volc);
         _inserter = new TextInserter(InsertModeParser.ParseOrDefault(_cfg.InsertMode), _cfg.AppendSpace);
+        _dialogContext = new DialogContextManager(_cfg.DialogContext);
 
         _toggleItem = new ToolStripMenuItem("开始录音");
         _toggleItem.Click += async (_, _) => await ToggleAsync();
@@ -194,6 +198,12 @@ public sealed class TrayAppContext : ApplicationContext
         _targetWindow = Win32.GetForegroundWindow();
         var title = Win32.GetWindowTitle(_targetWindow);
         LogStatus("目标窗口", $"0x{_targetWindow.ToInt64():X} {title}");
+        _dialogContextKey = DialogContextManager.BuildWindowKey(_targetWindow);
+        _dialogContextText = _dialogContext.GetDialogContext(_dialogContextKey);
+        if (!string.IsNullOrWhiteSpace(_dialogContextText))
+        {
+            LogStatus("上下文", $"已加载（长度 {_dialogContextText.Length}）");
+        }
         _state = AppState.Recording;
 
         _toggleItem.Text = "停止";
@@ -268,6 +278,12 @@ public sealed class TrayAppContext : ApplicationContext
                     if (_streamSession is null) return;
                     await _streamSession.ApplyFinalAsync(finalText, token).ConfigureAwait(true);
                 });
+
+                _ = Task.Run(async () =>
+                {
+                    try { await _dialogContext.UpdateFromFinalAsync(_dialogContextKey, finalText, CancellationToken.None); }
+                    catch { }
+                });
             }
             else
             {
@@ -308,7 +324,7 @@ public sealed class TrayAppContext : ApplicationContext
         _pcmChunkLogged = false;
         _partialLogged = false;
         LogStatus("流式会话启动", $"Endpoint: {_cfg.Volc.Endpoint} ResourceId: {_cfg.Volc.ResourceId}");
-        _asrTask = _asr.TranscribeStreamingAsync(_pcmChannel.Reader, targetSampleRate, OnAsrResult, _streamCts.Token);
+        _asrTask = _asr.TranscribeStreamingAsync(_pcmChannel.Reader, targetSampleRate, OnAsrResult, _streamCts.Token, _dialogContextText);
         UpdateTrayIcon();
     }
 

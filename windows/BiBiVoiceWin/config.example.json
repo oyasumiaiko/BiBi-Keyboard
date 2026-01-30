@@ -21,5 +21,16 @@
     "VadEndWindowSizeMs": 800,
     "VadForceToSpeechTimeMs": 1000,
     "Language": ""
+  },
+  "DialogContext": {
+    "Enabled": false,
+    "LlmEndpoint": "https://api.openai.com/v1/chat/completions",
+    "LlmApiKey": "",
+    "LlmModel": "gpt-4o-mini",
+    "LlmTemperature": 0.2,
+    "SourceMaxChars": 800,
+    "MinUpdateChars": 8,
+    "MaxSummaryChars": 200,
+    "TtlMinutes": 240
   }
 }

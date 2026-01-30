@@ -20,6 +20,7 @@ public sealed class AppConfig
     public double AutoStopThresholdDb { get; init; } = -35;
 
     public VolcConfig Volc { get; init; } = new();
+    public DialogContextConfig DialogContext { get; init; } = new();
 
     public static (AppConfig Config, string ConfigPath, bool Created) LoadOrCreate()
     {
@@ -83,6 +84,18 @@ public sealed class AppConfig
                 VadEndWindowSizeMs = 800,
                 VadForceToSpeechTimeMs = 1000,
                 Language = ""
+            },
+            DialogContext = new DialogContextConfig
+            {
+                Enabled = false,
+                LlmEndpoint = "https://api.openai.com/v1/chat/completions",
+                LlmApiKey = "",
+                LlmModel = "gpt-4o-mini",
+                LlmTemperature = 0.2f,
+                SourceMaxChars = 800,
+                MinUpdateChars = 8,
+                MaxSummaryChars = 200,
+                TtlMinutes = 240
             }
         };
     }
@@ -108,4 +121,22 @@ public sealed class VolcConfig
     public int VadEndWindowSizeMs { get; init; } = 800;
     public int VadForceToSpeechTimeMs { get; init; } = 1000;
     public string Language { get; init; } = "";
+}
+
+public sealed class DialogContextConfig
+{
+    public bool Enabled { get; init; } = false;
+    public string LlmEndpoint { get; init; } = "https://api.openai.com/v1/chat/completions";
+    public string LlmApiKey { get; init; } = "";
+    public string LlmModel { get; init; } = "gpt-4o-mini";
+    public float LlmTemperature { get; init; } = 0.2f;
+
+    // 单次输入给 LLM 的最大字符数（防止超长文本拖慢）
+    public int SourceMaxChars { get; init; } = 800;
+    // 短文本不做摘要更新，避免噪声
+    public int MinUpdateChars { get; init; } = 8;
+    // 对话上下文摘要最大长度
+    public int MaxSummaryChars { get; init; } = 200;
+    // 上下文过期时间（分钟）
+    public int TtlMinutes { get; init; } = 240;
 }

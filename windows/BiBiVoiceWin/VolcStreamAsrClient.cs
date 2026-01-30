@@ -50,7 +50,7 @@ public sealed class VolcStreamAsrClient
     /// <summary>
     /// 发送 PCM16（小端、单声道）并返回最终识别文本。
     /// </summary>
-    public async Task<string> TranscribeAsync(byte[] pcm16, int sampleRate, CancellationToken ct)
+    public async Task<string> TranscribeAsync(byte[] pcm16, int sampleRate, CancellationToken ct, string? dialogContext = null)
     {
         _loggedDecodeError = false;
         _serverMsgLogged = 0;
@@ -83,7 +83,7 @@ public sealed class VolcStreamAsrClient
         AppLogger.Status("WebSocket", "连接成功");
 
         // 1) 发送“完整请求”
-        var fullJson = BuildFullClientRequestJson(_cfg.AppKey, sampleRate, _cfg);
+        var fullJson = BuildFullClientRequestJson(_cfg.AppKey, sampleRate, _cfg, dialogContext);
         var fullPayload = Gzip(Encoding.UTF8.GetBytes(fullJson));
         await SendFrameAsync(
             ws,
@@ -116,7 +116,8 @@ public sealed class VolcStreamAsrClient
         ChannelReader<byte[]> audioReader,
         int sampleRate,
         Action<string, bool> onResult,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? dialogContext = null)
     {
         _loggedDecodeError = false;
         _serverMsgLogged = 0;
@@ -149,7 +150,7 @@ public sealed class VolcStreamAsrClient
         AppLogger.Status("WebSocket", "连接成功");
 
         // 1) 发送“完整请求”
-        var fullJson = BuildFullClientRequestJson(_cfg.AppKey, sampleRate, _cfg);
+        var fullJson = BuildFullClientRequestJson(_cfg.AppKey, sampleRate, _cfg, dialogContext);
         var fullPayload = Gzip(Encoding.UTF8.GetBytes(fullJson));
         await SendFrameAsync(
             ws,
@@ -480,7 +481,7 @@ public sealed class VolcStreamAsrClient
     /// <summary>
     /// 构建“完整请求”JSON（尽量保持纯函数，便于排查与复用）。
     /// </summary>
-    public static string BuildFullClientRequestJson(string uid, int sampleRate, VolcConfig cfg)
+    public static string BuildFullClientRequestJson(string uid, int sampleRate, VolcConfig cfg, string? dialogContext)
     {
         var rate = sampleRate <= 0 ? 16000 : sampleRate;
         var language = cfg.Language?.Trim();
@@ -521,6 +522,21 @@ public sealed class VolcStreamAsrClient
         {
             // 二遍识别（nostream 重识别提升最终准确度）
             request["enable_nonstream"] = true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(dialogContext))
+        {
+            request["context"] = new Dictionary<string, object?>
+            {
+                ["context_type"] = "dialog_ctx",
+                ["context_data"] = new[]
+                {
+                    new Dictionary<string, object?>
+                    {
+                        ["text"] = dialogContext
+                    }
+                }
+            };
         }
 
         if (cfg.EnableVad)
