@@ -3,6 +3,7 @@ using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Windowing;
 using Windows.Graphics;
 using Windows.UI;
@@ -44,16 +45,17 @@ public sealed partial class MainWindow : Window
 
     private void Root_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
     {
-        if (MainScroll is null) return;
-        var point = e.GetCurrentPoint(MainScroll);
+        var scroll = FindScrollViewer(e.OriginalSource as DependencyObject) ?? FindScrollViewer(Root);
+        if (scroll is null) return;
+        var point = e.GetCurrentPoint(scroll);
         var delta = point.Properties.MouseWheelDelta;
         if (delta == 0) return;
 
         // 手动滚动时用动画，避免出现“前半段跳、后半段顺”的割裂感。
-        var next = MainScroll.VerticalOffset - delta;
+        var next = scroll.VerticalOffset - delta;
         if (next < 0) next = 0;
-        if (next > MainScroll.ScrollableHeight) next = MainScroll.ScrollableHeight;
-        MainScroll.ChangeView(null, next, null, disableAnimation: false);
+        if (next > scroll.ScrollableHeight) next = scroll.ScrollableHeight;
+        scroll.ChangeView(null, next, null, disableAnimation: false);
         e.Handled = true;
     }
 
@@ -139,6 +141,16 @@ public sealed partial class MainWindow : Window
 
         Root.Resources["CardBackgroundBrush"] = new SolidColorBrush(cardBg);
         Root.Resources["CardBorderBrush"] = new SolidColorBrush(cardBorder);
+    }
+
+    private static ScrollViewer? FindScrollViewer(DependencyObject? current)
+    {
+        while (current is not null)
+        {
+            if (current is ScrollViewer sv) return sv;
+            current = VisualTreeHelper.GetParent(current);
+        }
+        return null;
     }
 
     private void OnWindowSizeChanged(object sender, WindowSizeChangedEventArgs args)

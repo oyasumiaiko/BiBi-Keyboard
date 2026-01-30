@@ -2,6 +2,7 @@
     x:Class="BiBiVoiceWin.Settings.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Microsoft.UI.Xaml.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
@@ -35,47 +36,94 @@
 
             <TextBlock Grid.Row="1" Text="{Binding ConfigPath}" Margin="0,8,0,8" Opacity="0.7" />
 
-            <ScrollViewer x:Name="MainScroll"
-                          Grid.Row="2"
-                          VerticalScrollBarVisibility="Auto"
-                          VerticalScrollMode="Enabled"
-                          IsVerticalScrollChainingEnabled="True"
-                          IsVerticalRailEnabled="True"
-                          IsScrollInertiaEnabled="True">
-                <StackPanel Spacing="16">
-                    <Border Style="{StaticResource CardStyle}">
-                        <StackPanel Spacing="8">
-                            <TextBlock Text="常用" Style="{StaticResource SectionHeaderTextStyle}" />
-                            <ToggleSwitch Header="按住说话" IsOn="{Binding HoldToTalkEnabled, Mode=TwoWay}" />
-                            <TextBox Header="按住说话按键" Text="{Binding HoldToTalkKey, Mode=TwoWay}" />
-                            <NumberBox Header="长按阈值（毫秒）" Value="{Binding HoldToTalkMinHoldMs, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
-                            <TextBox Header="单击热键（仅在关闭按住说话时生效）" Text="{Binding Hotkey, Mode=TwoWay}" />
-                        </StackPanel>
-                    </Border>
+            <controls:TabView Grid.Row="2">
+                <controls:TabViewItem Header="常用">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  VerticalScrollMode="Enabled"
+                                  IsVerticalScrollChainingEnabled="True"
+                                  IsVerticalRailEnabled="True"
+                                  IsScrollInertiaEnabled="True">
+                        <StackPanel Spacing="16" Margin="0,8,0,0">
+                            <Border Style="{StaticResource CardStyle}">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="按住说话" Style="{StaticResource SectionHeaderTextStyle}" />
+                                    <ToggleSwitch Header="启用按住说话" IsOn="{Binding HoldToTalkEnabled, Mode=TwoWay}" />
+                                    <TextBox Header="按住说话按键" Text="{Binding HoldToTalkKey, Mode=TwoWay}" />
+                                    <NumberBox Header="长按阈值（毫秒）" Value="{Binding HoldToTalkMinHoldMs, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                                </StackPanel>
+                            </Border>
 
-                    <Border Style="{StaticResource CardStyle}">
-                        <StackPanel Spacing="8">
-                            <TextBlock Text="录音" Style="{StaticResource SectionHeaderTextStyle}" />
-                            <NumberBox Header="最大录音时长（秒）" Value="{Binding MaxRecordSeconds, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
-                            <ToggleSwitch Header="启用静音判停" IsOn="{Binding AutoStopEnabled, Mode=TwoWay}" />
-                            <NumberBox Header="静音判停时长（毫秒）" Value="{Binding AutoStopSilenceMs, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
-                            <NumberBox Header="静音阈值（dB）" Value="{Binding AutoStopThresholdDb, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                            <Border Style="{StaticResource CardStyle}">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="单击热键" Style="{StaticResource SectionHeaderTextStyle}" />
+                                    <TextBox Header="单击热键（仅在关闭按住说话时生效）" Text="{Binding Hotkey, Mode=TwoWay}" />
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
-                    </Border>
+                    </ScrollViewer>
+                </controls:TabViewItem>
 
-                    <Border Style="{StaticResource CardStyle}">
-                        <StackPanel Spacing="8">
-                            <TextBlock Text="语音识别" Style="{StaticResource SectionHeaderTextStyle}" />
-                            <TextBox Header="AppKey（App ID）" Text="{Binding VolcAppKey, Mode=TwoWay}" />
-                            <TextBox Header="AccessKey（Access Token）" Text="{Binding VolcAccessKey, Mode=TwoWay}" />
-                            <TextBox Header="ResourceId" Text="{Binding VolcResourceId, Mode=TwoWay}" />
-                            <ToggleSwitch Header="开启语义顺滑（推荐）" IsOn="{Binding VolcEnableDdc, Mode=TwoWay}" />
-                            <ToggleSwitch Header="开启二遍识别（推荐）" IsOn="{Binding VolcEnableNonstream, Mode=TwoWay}" />
+                <controls:TabViewItem Header="录音">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  VerticalScrollMode="Enabled"
+                                  IsVerticalScrollChainingEnabled="True"
+                                  IsVerticalRailEnabled="True"
+                                  IsScrollInertiaEnabled="True">
+                        <StackPanel Spacing="16" Margin="0,8,0,0">
+                            <Border Style="{StaticResource CardStyle}">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="录音设置" Style="{StaticResource SectionHeaderTextStyle}" />
+                                    <NumberBox Header="最大录音时长（秒）" Value="{Binding MaxRecordSeconds, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                                    <NumberBox Header="采样率（Hz）" Value="{Binding TargetSampleRate, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource CardStyle}">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="静音判停" Style="{StaticResource SectionHeaderTextStyle}" />
+                                    <ToggleSwitch Header="启用静音判停" IsOn="{Binding AutoStopEnabled, Mode=TwoWay}" />
+                                    <NumberBox Header="静音判停时长（毫秒）" Value="{Binding AutoStopSilenceMs, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                                    <NumberBox Header="静音阈值（dB）" Value="{Binding AutoStopThresholdDb, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
-                    </Border>
+                    </ScrollViewer>
+                </controls:TabViewItem>
 
-                    <Expander Header="高级设置（不确定就别动）" IsExpanded="False">
-                        <StackPanel Spacing="12">
+                <controls:TabViewItem Header="语音识别">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  VerticalScrollMode="Enabled"
+                                  IsVerticalScrollChainingEnabled="True"
+                                  IsVerticalRailEnabled="True"
+                                  IsScrollInertiaEnabled="True">
+                        <StackPanel Spacing="16" Margin="0,8,0,0">
+                            <Border Style="{StaticResource CardStyle}">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="密钥" Style="{StaticResource SectionHeaderTextStyle}" />
+                                    <TextBox Header="AppKey（App ID）" Text="{Binding VolcAppKey, Mode=TwoWay}" />
+                                    <TextBox Header="AccessKey（Access Token）" Text="{Binding VolcAccessKey, Mode=TwoWay}" />
+                                    <TextBox Header="ResourceId" Text="{Binding VolcResourceId, Mode=TwoWay}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource CardStyle}">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="推荐开关" Style="{StaticResource SectionHeaderTextStyle}" />
+                                    <ToggleSwitch Header="开启语义顺滑（推荐）" IsOn="{Binding VolcEnableDdc, Mode=TwoWay}" />
+                                    <ToggleSwitch Header="开启二遍识别（推荐）" IsOn="{Binding VolcEnableNonstream, Mode=TwoWay}" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </controls:TabViewItem>
+
+                <controls:TabViewItem Header="高级">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  VerticalScrollMode="Enabled"
+                                  IsVerticalScrollChainingEnabled="True"
+                                  IsVerticalRailEnabled="True"
+                                  IsScrollInertiaEnabled="True">
+                        <StackPanel Spacing="16" Margin="0,8,0,0">
                             <Border Style="{StaticResource CardStyle}">
                                 <StackPanel Spacing="8">
                                     <TextBlock Text="输入行为" Style="{StaticResource SectionHeaderTextStyle}" />
@@ -93,7 +141,6 @@
                                     <NumberBox Header="VAD 结束窗口（毫秒）" Value="{Binding VolcVadEndWindowSizeMs, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
                                     <NumberBox Header="VAD 强制语音阈值（毫秒）" Value="{Binding VolcVadForceToSpeechTimeMs, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
                                     <NumberBox Header="收尾卡死自动重置（秒）" Value="{Binding TranscribeWatchdogSeconds, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
-                                    <NumberBox Header="采样率（Hz）" Value="{Binding TargetSampleRate, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
                                 </StackPanel>
                             </Border>
 
@@ -112,9 +159,9 @@
                                 </StackPanel>
                             </Border>
                         </StackPanel>
-                    </Expander>
-                </StackPanel>
-            </ScrollViewer>
+                    </ScrollViewer>
+                </controls:TabViewItem>
+            </controls:TabView>
         </Grid>
     </Grid>
 </Window>
