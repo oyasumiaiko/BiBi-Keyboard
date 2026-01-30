@@ -1,5 +1,5 @@
 {
-  "Hotkey": "Alt+Space",
+  "Hotkey": "Space",
   "InsertMode": "SendInput",
   "AppendSpace": false,
   "HoldToTalkEnabled": true,

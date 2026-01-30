@@ -4,7 +4,7 @@ namespace BiBiVoiceWin;
 
 public sealed class AppConfig
 {
-    public string Hotkey { get; init; } = "Alt+Space";
+    public string Hotkey { get; init; } = "Space";
     public string InsertMode { get; init; } = "SendInput";
     public bool AppendSpace { get; init; } = false;
 
@@ -61,7 +61,7 @@ public sealed class AppConfig
     {
         return new AppConfig
         {
-            Hotkey = "Alt+Space",
+            Hotkey = "Space",
             InsertMode = "SendInput",
             AppendSpace = false,
             HoldToTalkEnabled = true,

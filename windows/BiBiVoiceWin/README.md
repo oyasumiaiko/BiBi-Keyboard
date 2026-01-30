@@ -23,7 +23,7 @@
 4. 使用：
 
    - 程序以托盘图标常驻（双击托盘图标也可触发）
-   - 默认热键 `Alt+Space`（仅在关闭“按住说话”时生效）
+   - 默认热键 `Space`（仅在关闭“按住说话”时生效）
    - 第一次按下：开始录音
    - 再按一次：停止录音 → 调用 ASR → 把文本插入到录音开始时的前台窗口
    - 退出：右键托盘图标 → `退出`
@@ -33,8 +33,10 @@
 - 默认使用火山引擎 WebSocket 流式 `bigmodel_async`（与 Android 端 `VolcStreamAsrEngine` 相同协议）。
 - 识别过程中会实时把内容插入到当前输入框，停止热键用于“收尾并等待最终结果”。
 - 默认启用“按住说话”：长按 `Space` 开始识别并流式输入，松开停止并收尾；短按空格仍会输入空格。
+  - 配置项：`HoldToTalkEnabled`（是否启用）、`HoldToTalkKey`（按住的键）、`HoldToTalkMinHoldMs`（长按阈值，毫秒）。
+  - 当 `HoldToTalkEnabled=true` 时，不会注册全局热键；此时 `Hotkey` 配置不会生效。
+- 当 `HoldToTalkEnabled=false` 时，才使用 `Hotkey` 作为“按一下开始/再按一下结束”的全局热键。
 - 按住说话时会忽略静音判停，避免中途停顿导致自动停止。
-- 文本插入默认使用 `SendInput`（纯键盘输入，不走剪贴板）；如需兼容性更好可改为 `Clipboard`。
 - 托盘图标为动态提示：上半表示麦克风录音状态，下半表示流式传输状态。
 - `AutoStopEnabled=true` 时，检测到“说过话”后，持续静音达到 `AutoStopSilenceMs` 会自动停止并识别。
 - 日志输出默认写入 `%APPDATA%\\BiBiVoiceWin\\logs\\app.log`；从 PowerShell/CMD 启动时会自动附加到父控制台并输出同样内容。
