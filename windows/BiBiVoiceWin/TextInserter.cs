@@ -66,6 +66,7 @@ public sealed class TextInserter
         private readonly SemaphoreSlim _gate = new(1, 1);
         private string _lastText = "";
         private bool _finalized;
+        private bool _finalSpaceAppended;
         private int _insertLogBudget = InsertLogBudget;
 
         public StreamingSession(TextInserter owner, IntPtr targetWindow)
@@ -89,6 +90,10 @@ public sealed class TextInserter
         private async Task ApplyAsync(string text, bool isFinal, CancellationToken ct)
         {
             if (_finalized) return;
+            if (!isFinal)
+            {
+                _finalSpaceAppended = false;
+            }
             if (string.IsNullOrWhiteSpace(text))
             {
                 if (isFinal) _finalized = true;
@@ -158,7 +163,9 @@ public sealed class TextInserter
         private async Task AppendSpaceIfNeededAsync(CancellationToken ct)
         {
             if (!_owner._appendSpace) return;
+            if (_finalSpaceAppended) return;
             await InsertTextAsync(" ", ct).ConfigureAwait(true);
+            _finalSpaceAppended = true;
         }
 
         private Task InsertTextAsync(string text, CancellationToken ct)
@@ -169,6 +176,46 @@ public sealed class TextInserter
             if (Win32.SendUnicodeText(text)) return Task.CompletedTask;
             LogInsert($"SendInput 失败（长度={text.Length}，err={Win32.LastSendInputError}）");
             return Task.CompletedTask;
+        }
+
+        public async Task ApplyCorrectionAsync(string correctedText, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(correctedText)) return;
+            var normalized = correctedText.Trim();
+            if (string.IsNullOrWhiteSpace(normalized)) return;
+
+            await _gate.WaitAsync(ct).ConfigureAwait(true);
+            try
+            {
+                if (normalized == _lastText) return;
+
+                var currentWindow = Win32.GetForegroundWindow();
+                if (currentWindow != IntPtr.Zero && currentWindow != _targetWindow)
+                {
+                    // 用户切换了输入目标：避免在新窗口回退删除旧内容
+                    _targetWindow = currentWindow;
+                    _lastText = "";
+                }
+
+                Win32.TrySetForegroundWindow(_targetWindow);
+
+                // 先回退删除已插入内容（含尾随空格）
+                var backspaceCount = _lastText.Length + (_finalSpaceAppended ? 1 : 0);
+                if (backspaceCount > 0)
+                {
+                    Win32.SendBackspace(backspaceCount);
+                }
+
+                await InsertTextAsync(normalized, ct).ConfigureAwait(true);
+                _lastText = normalized;
+                _finalSpaceAppended = false;
+                await AppendSpaceIfNeededAsync(ct).ConfigureAwait(true);
+                _finalized = true;
+            }
+            finally
+            {
+                _gate.Release();
+            }
         }
 
         private void LogInsert(string message)

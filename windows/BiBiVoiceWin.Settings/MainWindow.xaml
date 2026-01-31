@@ -133,14 +133,24 @@
                             <Rectangle Height="1" Fill="{ThemeResource CardBorderBrush}" Margin="0,6,0,6" />
 
                             <TextBlock Text="对话上下文" Style="{StaticResource SectionHeaderTextStyle}" />
-                            <ToggleSwitch Header="启用对话上下文" IsOn="{Binding DialogEnabled, Mode=TwoWay}" />
+                            <ToggleSwitch Header="启用对话上下文摘要（用于 dialog_ctx）" IsOn="{Binding DialogEnabled, Mode=TwoWay}" />
+
+                            <Rectangle Height="1" Fill="{ThemeResource CardBorderBrush}" Margin="0,6,0,6" />
+
+                            <TextBlock Text="上下文校对" Style="{StaticResource SectionHeaderTextStyle}" />
+                            <ToggleSwitch Header="启用语音校对（输入完成后自动修正）" IsOn="{Binding ProofreadEnabled, Mode=TwoWay}" />
+                            <TextBox Header="推理努力程度（low/medium/high）" Text="{Binding LlmReasoningEffort, Mode=TwoWay}" />
+
+                            <Rectangle Height="1" Fill="{ThemeResource CardBorderBrush}" Margin="0,6,0,6" />
+
+                            <TextBlock Text="LLM 参数" Style="{StaticResource SectionHeaderTextStyle}" />
                             <TextBox Header="LLM Endpoint" Text="{Binding LlmEndpoint, Mode=TwoWay}" />
                             <TextBox Header="LLM API Key" Text="{Binding LlmApiKey, Mode=TwoWay}" />
                             <TextBox Header="LLM Model" Text="{Binding LlmModel, Mode=TwoWay}" />
                             <NumberBox Header="Temperature" Value="{Binding LlmTemperature, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
-                            <NumberBox Header="SourceMaxChars" Value="{Binding SourceMaxChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
-                            <NumberBox Header="MinUpdateChars" Value="{Binding MinUpdateChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
-                            <NumberBox Header="MaxSummaryChars" Value="{Binding MaxSummaryChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                            <NumberBox Header="SourceMaxChars（摘要/校对共用）" Value="{Binding SourceMaxChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                            <NumberBox Header="MinUpdateChars（摘要）" Value="{Binding MinUpdateChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                            <NumberBox Header="MaxSummaryChars（摘要）" Value="{Binding MaxSummaryChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
                             <NumberBox Header="TTL（分钟）" Value="{Binding TtlMinutes, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
                         </StackPanel>
                     </ScrollViewer>

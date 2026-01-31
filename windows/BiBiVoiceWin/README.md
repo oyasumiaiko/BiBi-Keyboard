@@ -43,6 +43,7 @@
 - 默认启用火山“语义顺滑”（`EnableDdc`）与“二遍识别”（`EnableNonstream`）以提升最终准确率；如需更原始结果可在配置中关闭。
 - 如需启用 VAD 判停分句，可设置 `EnableVad=true`，并使用推荐参数 `VadEndWindowSizeMs=800`、`VadForceToSpeechTimeMs=1000`。
 - 如需给火山 `dialog_ctx` 提供上下文，可开启 `DialogContext.Enabled` 并配置 LLM（用于摘要更新），每个窗口会维护独立的上下文摘要。
+- 如需“输入完成后自动校对”，可开启 `DialogContext.ProofreadEnabled`。程序会尝试读取当前焦点输入框已有文本作为上下文，并将“新增语音文本”发给 LLM 做纠错后再回写。
 
 ## 设置界面（WinUI）
 

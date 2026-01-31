@@ -34,10 +34,12 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     private string _volcLanguage = "";
 
     private bool _dialogEnabled;
-    private string _llmEndpoint = "https://api.openai.com/v1/chat/completions";
+    private bool _proofreadEnabled = true;
+    private string _llmEndpoint = "https://openrouter.ai/api/v1/chat/completions";
     private string _llmApiKey = "";
-    private string _llmModel = "gpt-4o-mini";
+    private string _llmModel = "google/gemini-3-flash-preview";
     private double _llmTemperature = 0.2;
+    private string _llmReasoningEffort = "low";
     private double _sourceMaxChars = 800;
     private double _minUpdateChars = 8;
     private double _maxSummaryChars = 200;
@@ -200,6 +202,12 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         set => SetField(ref _dialogEnabled, value);
     }
 
+    public bool ProofreadEnabled
+    {
+        get => _proofreadEnabled;
+        set => SetField(ref _proofreadEnabled, value);
+    }
+
     public string LlmEndpoint
     {
         get => _llmEndpoint;
@@ -222,6 +230,12 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     {
         get => _llmTemperature;
         set => SetField(ref _llmTemperature, value);
+    }
+
+    public string LlmReasoningEffort
+    {
+        get => _llmReasoningEffort;
+        set => SetField(ref _llmReasoningEffort, value);
     }
 
     public double SourceMaxChars
@@ -279,10 +293,12 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         VolcLanguage = cfg.Volc.Language;
 
         DialogEnabled = cfg.DialogContext.Enabled;
+        ProofreadEnabled = cfg.DialogContext.ProofreadEnabled;
         LlmEndpoint = cfg.DialogContext.LlmEndpoint;
         LlmApiKey = cfg.DialogContext.LlmApiKey;
         LlmModel = cfg.DialogContext.LlmModel;
         LlmTemperature = cfg.DialogContext.LlmTemperature;
+        LlmReasoningEffort = cfg.DialogContext.LlmReasoningEffort;
         SourceMaxChars = cfg.DialogContext.SourceMaxChars;
         MinUpdateChars = cfg.DialogContext.MinUpdateChars;
         MaxSummaryChars = cfg.DialogContext.MaxSummaryChars;
@@ -325,10 +341,12 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
                 DialogContext = new DialogContextConfig
                 {
                     Enabled = DialogEnabled,
+                    ProofreadEnabled = ProofreadEnabled,
                     LlmEndpoint = LlmEndpoint.Trim(),
                     LlmApiKey = LlmApiKey.Trim(),
                     LlmModel = LlmModel.Trim(),
                     LlmTemperature = (float)LlmTemperature,
+                    LlmReasoningEffort = LlmReasoningEffort.Trim(),
                     SourceMaxChars = ToInt(SourceMaxChars, 800),
                     MinUpdateChars = ToInt(MinUpdateChars, 8),
                     MaxSummaryChars = ToInt(MaxSummaryChars, 200),

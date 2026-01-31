@@ -15,6 +15,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Reference Include="UIAutomationClient">
+      <HintPath>$(MSBuildProgramFiles32)\dotnet\packs\Microsoft.WindowsDesktop.App.Ref\8.0.8\ref\net8.0\UIAutomationClient.dll</HintPath>
+    </Reference>
+    <Reference Include="UIAutomationTypes">
+      <HintPath>$(MSBuildProgramFiles32)\dotnet\packs\Microsoft.WindowsDesktop.App.Ref\8.0.8\ref\net8.0\UIAutomationTypes.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\BiBiVoiceWin.Shared\BiBiVoiceWin.Shared.csproj" />
   </ItemGroup>
 </Project>

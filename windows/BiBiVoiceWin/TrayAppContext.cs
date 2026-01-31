@@ -36,6 +36,7 @@ public sealed class TrayAppContext : ApplicationContext
     private readonly VolcStreamAsrClient _asr;
     private readonly TextInserter _inserter;
     private readonly DialogContextManager _dialogContext;
+    private readonly InputProofreader _proofreader;
 
     private AppState _state = AppState.Idle;
     private IntPtr _targetWindow = IntPtr.Zero;
@@ -46,6 +47,7 @@ public sealed class TrayAppContext : ApplicationContext
     private TextInserter.StreamingSession? _streamSession;
     private string _dialogContextKey = "";
     private string? _dialogContextText;
+    private string? _preExistingInputText;
 
     // 录音线程触发的“建议停止”信号，通过 UI Timer 拉回到 UI 线程执行。
     private int _pendingAutoStopReason = 0;
@@ -100,6 +102,7 @@ public sealed class TrayAppContext : ApplicationContext
         _asr = new VolcStreamAsrClient(_cfg.Volc);
         _inserter = new TextInserter(InsertModeParser.ParseOrDefault(_cfg.InsertMode), _cfg.AppendSpace);
         _dialogContext = new DialogContextManager(_cfg.DialogContext);
+        _proofreader = new InputProofreader(_cfg.DialogContext);
 
         _toggleItem = new ToolStripMenuItem("开始录音");
         _toggleItem.Click += async (_, _) => await ToggleAsync();
@@ -215,6 +218,15 @@ public sealed class TrayAppContext : ApplicationContext
         _finalReceived = false;
         _restartAfterFinalize = false;
         _targetWindow = Win32.GetForegroundWindow();
+        _preExistingInputText = null;
+        if (_cfg.DialogContext.ProofreadEnabled)
+        {
+            _preExistingInputText = InputContextReader.TryReadFocusedText();
+            if (!string.IsNullOrWhiteSpace(_preExistingInputText))
+            {
+                LogStatus("校对上下文", $"已读取 {_preExistingInputText.Length} 字");
+            }
+        }
         var title = Win32.GetWindowTitle(_targetWindow);
         LogStatus("目标窗口", $"0x{_targetWindow.ToInt64():X} {title}");
         _dialogContextKey = DialogContextManager.BuildWindowKey(_targetWindow);
@@ -303,17 +315,18 @@ public sealed class TrayAppContext : ApplicationContext
             var finalText = await AwaitFinalResultAsync(ct);
             if (!string.IsNullOrWhiteSpace(finalText))
             {
-                PostToUi(async token =>
+                if (_streamSession is not null)
                 {
-                    if (_streamSession is null) return;
-                    await _streamSession.ApplyFinalAsync(finalText, token).ConfigureAwait(true);
-                });
+                    await _streamSession.ApplyFinalAsync(finalText, ct).ConfigureAwait(false);
+                }
 
                 _ = Task.Run(async () =>
                 {
                     try { await _dialogContext.UpdateFromFinalAsync(_dialogContextKey, finalText, CancellationToken.None); }
                     catch { }
                 });
+
+                await TryProofreadAndApplyAsync(finalText, ct).ConfigureAwait(false);
             }
             else
             {
@@ -333,6 +346,7 @@ public sealed class TrayAppContext : ApplicationContext
         {
             CleanupStreamingSession();
             ResetPreRollBuffer();
+            _preExistingInputText = null;
             _state = AppState.Idle;
             _transcribeStartedAt = DateTimeOffset.MinValue;
             _toggleItem.Text = "开始录音";
@@ -373,6 +387,7 @@ public sealed class TrayAppContext : ApplicationContext
             CancelStreamingSession();
             CleanupStreamingSession();
             ResetPreRollBuffer();
+            _preExistingInputText = null;
         }
     }
 
@@ -476,6 +491,25 @@ public sealed class TrayAppContext : ApplicationContext
             return "";
         }
         return await _asrTask.ConfigureAwait(false);
+    }
+
+    private async Task TryProofreadAndApplyAsync(string finalText, CancellationToken ct)
+    {
+        if (_streamSession is null) return;
+        if (string.IsNullOrWhiteSpace(finalText)) return;
+
+        var ctx = _preExistingInputText;
+        if (string.IsNullOrWhiteSpace(ctx))
+        {
+            // 若无法读取输入框文本，回退到已有的对话摘要（可选，避免完全无上下文）。
+            ctx = _dialogContextText;
+        }
+
+        var corrected = await _proofreader.ProofreadAsync(ctx, finalText, ct).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(corrected)) return;
+
+        LogStatus("校对完成", $"修正后长度 {corrected.Length}");
+        await _streamSession.ApplyCorrectionAsync(corrected, ct).ConfigureAwait(false);
     }
 
     private void OnPcm16Chunk(byte[] chunk)

@@ -98,10 +98,12 @@ public sealed class AppConfig
             DialogContext = new DialogContextConfig
             {
                 Enabled = false,
-                LlmEndpoint = "https://api.openai.com/v1/chat/completions",
+                ProofreadEnabled = true,
+                LlmEndpoint = "https://openrouter.ai/api/v1/chat/completions",
                 LlmApiKey = "",
-                LlmModel = "gpt-4o-mini",
+                LlmModel = "google/gemini-3-flash-preview",
                 LlmTemperature = 0.2f,
+                LlmReasoningEffort = "low",
                 SourceMaxChars = 800,
                 MinUpdateChars = 8,
                 MaxSummaryChars = 200,
@@ -136,10 +138,12 @@ public sealed class VolcConfig
 public sealed class DialogContextConfig
 {
     public bool Enabled { get; init; } = false;
-    public string LlmEndpoint { get; init; } = "https://api.openai.com/v1/chat/completions";
+    public bool ProofreadEnabled { get; init; } = true;
+    public string LlmEndpoint { get; init; } = "https://openrouter.ai/api/v1/chat/completions";
     public string LlmApiKey { get; init; } = "";
-    public string LlmModel { get; init; } = "gpt-4o-mini";
+    public string LlmModel { get; init; } = "google/gemini-3-flash-preview";
     public float LlmTemperature { get; init; } = 0.2f;
+    public string LlmReasoningEffort { get; init; } = "low";
 
     // 单次输入给 LLM 的最大字符数（防止超长文本拖慢）
     public int SourceMaxChars { get; init; } = 800;
