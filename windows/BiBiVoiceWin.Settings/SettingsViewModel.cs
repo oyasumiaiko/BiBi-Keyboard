@@ -32,6 +32,8 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     private double _volcVadEndWindowSizeMs = 800;
     private double _volcVadForceToSpeechTimeMs = 1000;
     private string _volcLanguage = "";
+    private bool _volcDebugLogRequests;
+    private bool _volcDebugLogIncludeSecrets;
 
     private bool _dialogEnabled;
     private bool _proofreadEnabled = true;
@@ -196,6 +198,18 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         set => SetField(ref _volcLanguage, value);
     }
 
+    public bool VolcDebugLogRequests
+    {
+        get => _volcDebugLogRequests;
+        set => SetField(ref _volcDebugLogRequests, value);
+    }
+
+    public bool VolcDebugLogIncludeSecrets
+    {
+        get => _volcDebugLogIncludeSecrets;
+        set => SetField(ref _volcDebugLogIncludeSecrets, value);
+    }
+
     public bool DialogEnabled
     {
         get => _dialogEnabled;
@@ -291,6 +305,8 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         VolcVadEndWindowSizeMs = cfg.Volc.VadEndWindowSizeMs;
         VolcVadForceToSpeechTimeMs = cfg.Volc.VadForceToSpeechTimeMs;
         VolcLanguage = cfg.Volc.Language;
+        VolcDebugLogRequests = cfg.Volc.DebugLogRequests;
+        VolcDebugLogIncludeSecrets = cfg.Volc.DebugLogIncludeSecrets;
 
         DialogEnabled = cfg.DialogContext.Enabled;
         ProofreadEnabled = cfg.DialogContext.ProofreadEnabled;
@@ -336,7 +352,9 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
                     EnableVad = VolcEnableVad,
                     VadEndWindowSizeMs = ToInt(VolcVadEndWindowSizeMs, 800),
                     VadForceToSpeechTimeMs = ToInt(VolcVadForceToSpeechTimeMs, 1000),
-                    Language = VolcLanguage.Trim()
+                    Language = VolcLanguage.Trim(),
+                    DebugLogRequests = VolcDebugLogRequests,
+                    DebugLogIncludeSecrets = VolcDebugLogIncludeSecrets
                 },
                 DialogContext = new DialogContextConfig
                 {

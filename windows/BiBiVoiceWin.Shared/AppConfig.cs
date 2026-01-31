@@ -93,7 +93,9 @@ public sealed class AppConfig
                 EnableVad = false,
                 VadEndWindowSizeMs = 800,
                 VadForceToSpeechTimeMs = 1000,
-                Language = ""
+                Language = "",
+                DebugLogRequests = false,
+                DebugLogIncludeSecrets = false
             },
             DialogContext = new DialogContextConfig
             {
@@ -133,6 +135,10 @@ public sealed class VolcConfig
     public int VadEndWindowSizeMs { get; init; } = 800;
     public int VadForceToSpeechTimeMs { get; init; } = 1000;
     public string Language { get; init; } = "";
+    // 记录每次 ASR 请求的完整参数（含 dialog_ctx 文本），便于排查问题。
+    public bool DebugLogRequests { get; init; } = false;
+    // 是否把密钥原文写入日志（高风险，默认关闭）。
+    public bool DebugLogIncludeSecrets { get; init; } = false;
 }
 
 public sealed class DialogContextConfig

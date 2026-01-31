@@ -73,10 +73,11 @@ public sealed class VolcStreamAsrClient
 
         using var ws = new ClientWebSocket();
         ws.Options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+        var connectId = Guid.NewGuid().ToString();
         ws.Options.SetRequestHeader("X-Api-App-Key", _cfg.AppKey);
         ws.Options.SetRequestHeader("X-Api-Access-Key", _cfg.AccessKey);
         ws.Options.SetRequestHeader("X-Api-Resource-Id", _cfg.ResourceId);
-        ws.Options.SetRequestHeader("X-Api-Connect-Id", Guid.NewGuid().ToString());
+        ws.Options.SetRequestHeader("X-Api-Connect-Id", connectId);
 
         AppLogger.Status("WebSocket", "开始连接");
         await ws.ConnectAsync(new Uri(_cfg.Endpoint), ct).ConfigureAwait(false);
@@ -84,6 +85,7 @@ public sealed class VolcStreamAsrClient
 
         // 1) 发送“完整请求”
         var fullJson = BuildFullClientRequestJson(_cfg.AppKey, sampleRate, _cfg, dialogContext);
+        LogRequestDetails(fullJson, connectId, sampleRate, dialogContext);
         var fullPayload = Gzip(Encoding.UTF8.GetBytes(fullJson));
         await SendFrameAsync(
             ws,
@@ -140,10 +142,11 @@ public sealed class VolcStreamAsrClient
 
         using var ws = new ClientWebSocket();
         ws.Options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+        var connectId = Guid.NewGuid().ToString();
         ws.Options.SetRequestHeader("X-Api-App-Key", _cfg.AppKey);
         ws.Options.SetRequestHeader("X-Api-Access-Key", _cfg.AccessKey);
         ws.Options.SetRequestHeader("X-Api-Resource-Id", _cfg.ResourceId);
-        ws.Options.SetRequestHeader("X-Api-Connect-Id", Guid.NewGuid().ToString());
+        ws.Options.SetRequestHeader("X-Api-Connect-Id", connectId);
 
         AppLogger.Status("WebSocket", "开始连接");
         await ws.ConnectAsync(new Uri(_cfg.Endpoint), ct).ConfigureAwait(false);
@@ -151,6 +154,7 @@ public sealed class VolcStreamAsrClient
 
         // 1) 发送“完整请求”
         var fullJson = BuildFullClientRequestJson(_cfg.AppKey, sampleRate, _cfg, dialogContext);
+        LogRequestDetails(fullJson, connectId, sampleRate, dialogContext);
         var fullPayload = Gzip(Encoding.UTF8.GetBytes(fullJson));
         await SendFrameAsync(
             ws,
@@ -548,6 +552,37 @@ public sealed class VolcStreamAsrClient
         }
 
         return JsonSerializer.Serialize(root);
+    }
+
+    // 调试用：记录完整请求参数。默认对密钥脱敏，避免误泄露。
+    private void LogRequestDetails(string fullJson, string connectId, int sampleRate, string? dialogContext)
+    {
+        if (!_cfg.DebugLogRequests) return;
+
+        var appKey = _cfg.DebugLogIncludeSecrets ? _cfg.AppKey : MaskSecret(_cfg.AppKey);
+        var accessKey = _cfg.DebugLogIncludeSecrets ? _cfg.AccessKey : MaskSecret(_cfg.AccessKey);
+        var dialogLen = string.IsNullOrWhiteSpace(dialogContext) ? 0 : dialogContext!.Length;
+        var payload = _cfg.DebugLogIncludeSecrets ? fullJson : MaskUid(fullJson, _cfg.AppKey);
+
+        AppLogger.Status(
+            "ASR请求",
+            $"Endpoint: {_cfg.Endpoint} ResourceId: {_cfg.ResourceId} AppKey: {appKey} AccessKey: {accessKey} ConnectId: {connectId} SampleRate: {sampleRate} DialogCtxLen: {dialogLen}"
+        );
+        AppLogger.Status("ASR请求", $"FullRequest: {payload}");
+    }
+
+    private static string MaskUid(string json, string uid)
+    {
+        if (string.IsNullOrWhiteSpace(uid)) return json;
+        var masked = MaskSecret(uid);
+        return json.Replace($"\"uid\":\"{uid}\"", $"\"uid\":\"{masked}\"");
+    }
+
+    private static string MaskSecret(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "";
+        if (value.Length <= 4) return new string('*', value.Length);
+        return value[..2] + new string('*', value.Length - 4) + value[^2..];
     }
 
     private static async Task SendFrameAsync(

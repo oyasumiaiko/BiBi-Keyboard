@@ -21,7 +21,9 @@
     "EnableVad": false,
     "VadEndWindowSizeMs": 800,
     "VadForceToSpeechTimeMs": 1000,
-    "Language": ""
+    "Language": "",
+    "DebugLogRequests": false,
+    "DebugLogIncludeSecrets": false
   },
   "DialogContext": {
     "Enabled": false,

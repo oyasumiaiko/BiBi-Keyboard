@@ -129,6 +129,8 @@
                             <NumberBox Header="VAD 结束窗口（毫秒）" Value="{Binding VolcVadEndWindowSizeMs, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
                             <NumberBox Header="VAD 强制语音阈值（毫秒）" Value="{Binding VolcVadForceToSpeechTimeMs, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
                             <NumberBox Header="收尾卡死自动重置（秒）" Value="{Binding TranscribeWatchdogSeconds, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                            <ToggleSwitch Header="记录 ASR 请求参数（写入日志）" IsOn="{Binding VolcDebugLogRequests, Mode=TwoWay}" />
+                            <ToggleSwitch Header="记录密钥与上下文到日志（危险）" IsOn="{Binding VolcDebugLogIncludeSecrets, Mode=TwoWay}" />
 
                             <Rectangle Height="1" Fill="{ThemeResource CardBorderBrush}" Margin="0,6,0,6" />
 
