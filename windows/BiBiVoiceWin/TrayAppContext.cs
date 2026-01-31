@@ -180,7 +180,7 @@ public sealed class TrayAppContext : ApplicationContext
         _restartAfterFinalize = false;
         _targetWindow = Win32.GetForegroundWindow();
         _preExistingInputText = null;
-        if (_cfg.DialogContext.ProofreadEnabled)
+        if (_cfg.Proofread.Enabled)
         {
             _preExistingInputText = InputContextReader.TryReadFocusedText();
             if (!string.IsNullOrWhiteSpace(_preExistingInputText))
@@ -714,7 +714,7 @@ public sealed class TrayAppContext : ApplicationContext
         _asr = new VolcStreamAsrClient(_cfg.Volc);
         _inserter = new TextInserter(InsertModeParser.ParseOrDefault(_cfg.InsertMode), _cfg.AppendSpace);
         _dialogContext = new DialogContextManager(_cfg.DialogContext);
-        _proofreader = new InputProofreader(_cfg.DialogContext);
+        _proofreader = new InputProofreader(_cfg.ResolveProofreadConfig());
 
         RebuildInputHooks();
         InitConfigWatcher(_configPath);

@@ -5,10 +5,10 @@ namespace BiBiVoiceWin;
 /// </summary>
 internal sealed class InputProofreader
 {
-    private readonly DialogContextConfig _cfg;
+    private readonly ProofreadConfig _cfg;
     private readonly LlmChatClient _client;
 
-    public InputProofreader(DialogContextConfig cfg)
+    public InputProofreader(ProofreadConfig cfg)
     {
         _cfg = cfg;
         _client = new LlmChatClient(cfg, "校对");
@@ -16,7 +16,7 @@ internal sealed class InputProofreader
 
     public async Task<string?> ProofreadAsync(string? existingText, string finalText, CancellationToken ct)
     {
-        if (!_cfg.ProofreadEnabled) return null;
+        if (!_cfg.Enabled) return null;
 
         var input = Normalize(finalText);
         if (string.IsNullOrWhiteSpace(input)) return null;

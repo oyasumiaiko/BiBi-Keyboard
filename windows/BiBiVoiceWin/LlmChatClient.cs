@@ -14,12 +14,12 @@ internal sealed class LlmChatClient
         Timeout = TimeSpan.FromSeconds(20)
     };
 
-    private readonly DialogContextConfig _cfg;
+    private readonly ILlmConfig _cfg;
     private readonly string _logPrefix;
     private bool _loggedMissingKey;
     private bool _loggedMissingEndpoint;
 
-    public LlmChatClient(DialogContextConfig cfg, string logPrefix)
+    public LlmChatClient(ILlmConfig cfg, string logPrefix)
     {
         _cfg = cfg;
         _logPrefix = string.IsNullOrWhiteSpace(logPrefix) ? "LLM" : logPrefix;
@@ -63,9 +63,16 @@ internal sealed class LlmChatClient
             payload["reasoning"] = reasoning;
         }
 
+        var payloadJson = JsonSerializer.Serialize(payload, new JsonSerializerOptions
+        {
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        });
+
+        LogRequest(payloadJson);
+
         var req = new HttpRequestMessage(HttpMethod.Post, _cfg.LlmEndpoint)
         {
-            Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
+            Content = new StringContent(payloadJson, Encoding.UTF8, "application/json")
         };
         req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _cfg.LlmApiKey);
 
@@ -81,6 +88,7 @@ internal sealed class LlmChatClient
         }
 
         var body = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+        LogResponse(resp, body);
         if (!resp.IsSuccessStatusCode)
         {
             AppLogger.Status(_logPrefix, $"LLM 返回错误 {((int)resp.StatusCode)}");
@@ -109,6 +117,30 @@ internal sealed class LlmChatClient
         }
 
         return null;
+    }
+
+    private void LogRequest(string payloadJson)
+    {
+        var apiKey = _cfg.LlmLogIncludeSecrets ? _cfg.LlmApiKey : MaskSecret(_cfg.LlmApiKey);
+        AppLogger.Status($"{_logPrefix}请求", $"Endpoint: {_cfg.LlmEndpoint} Model: {_cfg.LlmModel} ApiKey: {apiKey}");
+        AppLogger.Status($"{_logPrefix}请求", $"Payload: {payloadJson}");
+    }
+
+    private void LogResponse(HttpResponseMessage resp, string body)
+    {
+        var status = $"{(int)resp.StatusCode} {resp.ReasonPhrase}".Trim();
+        AppLogger.Status($"{_logPrefix}响应", $"Status: {status}");
+        if (!string.IsNullOrWhiteSpace(body))
+        {
+            AppLogger.Status($"{_logPrefix}响应", $"Body: {body}");
+        }
+    }
+
+    private static string MaskSecret(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "";
+        if (value.Length <= 4) return new string('*', value.Length);
+        return value[..2] + new string('*', value.Length - 4) + value[^2..];
     }
 
     private object? BuildReasoningConfig()

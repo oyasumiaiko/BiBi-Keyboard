@@ -22,20 +22,29 @@
     "VadEndWindowSizeMs": 800,
     "VadForceToSpeechTimeMs": 1000,
     "Language": "",
-    "DebugLogRequests": false,
     "DebugLogIncludeSecrets": false
   },
   "DialogContext": {
     "Enabled": false,
-    "ProofreadEnabled": true,
     "LlmEndpoint": "https://openrouter.ai/api/v1/chat/completions",
     "LlmApiKey": "",
     "LlmModel": "google/gemini-3-flash-preview",
     "LlmTemperature": 0.2,
     "LlmReasoningEffort": "low",
+    "LlmLogIncludeSecrets": false,
     "SourceMaxChars": 800,
     "MinUpdateChars": 8,
     "MaxSummaryChars": 200,
     "TtlMinutes": 240
+  },
+  "Proofread": {
+    "Enabled": true,
+    "LlmEndpoint": "https://openrouter.ai/api/v1/chat/completions",
+    "LlmApiKey": "",
+    "LlmModel": "google/gemini-3-flash-preview",
+    "LlmTemperature": 0.2,
+    "LlmReasoningEffort": "low",
+    "LlmLogIncludeSecrets": false,
+    "SourceMaxChars": 800
   }
 }

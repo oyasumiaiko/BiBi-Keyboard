@@ -67,6 +67,8 @@ public sealed partial class MainWindow : Window
         PageGeneral.Visibility = tag == "general" ? Visibility.Visible : Visibility.Collapsed;
         PageRecord.Visibility = tag == "record" ? Visibility.Visible : Visibility.Collapsed;
         PageAsr.Visibility = tag == "asr" ? Visibility.Visible : Visibility.Collapsed;
+        PageContext.Visibility = tag == "context" ? Visibility.Visible : Visibility.Collapsed;
+        PageProofread.Visibility = tag == "proofread" ? Visibility.Visible : Visibility.Collapsed;
         PageAdvanced.Visibility = tag == "advanced" ? Visibility.Visible : Visibility.Collapsed;
     }
 

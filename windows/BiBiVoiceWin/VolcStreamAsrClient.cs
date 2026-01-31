@@ -559,8 +559,6 @@ public sealed class VolcStreamAsrClient
     // 调试用：记录完整请求参数。默认对密钥脱敏，避免误泄露。
     private void LogRequestDetails(string fullJson, string connectId, int sampleRate, string? dialogContext)
     {
-        if (!_cfg.DebugLogRequests) return;
-
         var appKey = _cfg.DebugLogIncludeSecrets ? _cfg.AppKey : MaskSecret(_cfg.AppKey);
         var accessKey = _cfg.DebugLogIncludeSecrets ? _cfg.AccessKey : MaskSecret(_cfg.AccessKey);
         var dialogLen = string.IsNullOrWhiteSpace(dialogContext) ? 0 : dialogContext!.Length;

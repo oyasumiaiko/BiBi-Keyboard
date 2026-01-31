@@ -32,20 +32,28 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     private double _volcVadEndWindowSizeMs = 800;
     private double _volcVadForceToSpeechTimeMs = 1000;
     private string _volcLanguage = "";
-    private bool _volcDebugLogRequests;
     private bool _volcDebugLogIncludeSecrets;
 
     private bool _dialogEnabled;
+    private string _dialogLlmEndpoint = "https://openrouter.ai/api/v1/chat/completions";
+    private string _dialogLlmApiKey = "";
+    private string _dialogLlmModel = "google/gemini-3-flash-preview";
+    private double _dialogLlmTemperature = 0.2;
+    private string _dialogLlmReasoningEffort = "low";
+    private bool _dialogLlmLogIncludeSecrets;
+    private double _dialogSourceMaxChars = 800;
+    private double _dialogMinUpdateChars = 8;
+    private double _dialogMaxSummaryChars = 200;
+    private double _dialogTtlMinutes = 240;
+
     private bool _proofreadEnabled = true;
-    private string _llmEndpoint = "https://openrouter.ai/api/v1/chat/completions";
-    private string _llmApiKey = "";
-    private string _llmModel = "google/gemini-3-flash-preview";
-    private double _llmTemperature = 0.2;
-    private string _llmReasoningEffort = "low";
-    private double _sourceMaxChars = 800;
-    private double _minUpdateChars = 8;
-    private double _maxSummaryChars = 200;
-    private double _ttlMinutes = 240;
+    private string _proofreadLlmEndpoint = "https://openrouter.ai/api/v1/chat/completions";
+    private string _proofreadLlmApiKey = "";
+    private string _proofreadLlmModel = "google/gemini-3-flash-preview";
+    private double _proofreadLlmTemperature = 0.2;
+    private string _proofreadLlmReasoningEffort = "low";
+    private bool _proofreadLlmLogIncludeSecrets;
+    private double _proofreadSourceMaxChars = 800;
     private bool _isLoading;
     private System.Threading.Timer? _autoSaveTimer;
 
@@ -198,12 +206,6 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         set => SetField(ref _volcLanguage, value);
     }
 
-    public bool VolcDebugLogRequests
-    {
-        get => _volcDebugLogRequests;
-        set => SetField(ref _volcDebugLogRequests, value);
-    }
-
     public bool VolcDebugLogIncludeSecrets
     {
         get => _volcDebugLogIncludeSecrets;
@@ -216,64 +218,112 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         set => SetField(ref _dialogEnabled, value);
     }
 
+    public string DialogLlmEndpoint
+    {
+        get => _dialogLlmEndpoint;
+        set => SetField(ref _dialogLlmEndpoint, value);
+    }
+
+    public string DialogLlmApiKey
+    {
+        get => _dialogLlmApiKey;
+        set => SetField(ref _dialogLlmApiKey, value);
+    }
+
+    public string DialogLlmModel
+    {
+        get => _dialogLlmModel;
+        set => SetField(ref _dialogLlmModel, value);
+    }
+
+    public double DialogLlmTemperature
+    {
+        get => _dialogLlmTemperature;
+        set => SetField(ref _dialogLlmTemperature, value);
+    }
+
+    public string DialogLlmReasoningEffort
+    {
+        get => _dialogLlmReasoningEffort;
+        set => SetField(ref _dialogLlmReasoningEffort, value);
+    }
+
+    public bool DialogLlmLogIncludeSecrets
+    {
+        get => _dialogLlmLogIncludeSecrets;
+        set => SetField(ref _dialogLlmLogIncludeSecrets, value);
+    }
+
+    public double DialogSourceMaxChars
+    {
+        get => _dialogSourceMaxChars;
+        set => SetField(ref _dialogSourceMaxChars, value);
+    }
+
+    public double DialogMinUpdateChars
+    {
+        get => _dialogMinUpdateChars;
+        set => SetField(ref _dialogMinUpdateChars, value);
+    }
+
+    public double DialogMaxSummaryChars
+    {
+        get => _dialogMaxSummaryChars;
+        set => SetField(ref _dialogMaxSummaryChars, value);
+    }
+
+    public double DialogTtlMinutes
+    {
+        get => _dialogTtlMinutes;
+        set => SetField(ref _dialogTtlMinutes, value);
+    }
+
     public bool ProofreadEnabled
     {
         get => _proofreadEnabled;
         set => SetField(ref _proofreadEnabled, value);
     }
 
-    public string LlmEndpoint
+    public string ProofreadLlmEndpoint
     {
-        get => _llmEndpoint;
-        set => SetField(ref _llmEndpoint, value);
+        get => _proofreadLlmEndpoint;
+        set => SetField(ref _proofreadLlmEndpoint, value);
     }
 
-    public string LlmApiKey
+    public string ProofreadLlmApiKey
     {
-        get => _llmApiKey;
-        set => SetField(ref _llmApiKey, value);
+        get => _proofreadLlmApiKey;
+        set => SetField(ref _proofreadLlmApiKey, value);
     }
 
-    public string LlmModel
+    public string ProofreadLlmModel
     {
-        get => _llmModel;
-        set => SetField(ref _llmModel, value);
+        get => _proofreadLlmModel;
+        set => SetField(ref _proofreadLlmModel, value);
     }
 
-    public double LlmTemperature
+    public double ProofreadLlmTemperature
     {
-        get => _llmTemperature;
-        set => SetField(ref _llmTemperature, value);
+        get => _proofreadLlmTemperature;
+        set => SetField(ref _proofreadLlmTemperature, value);
     }
 
-    public string LlmReasoningEffort
+    public string ProofreadLlmReasoningEffort
     {
-        get => _llmReasoningEffort;
-        set => SetField(ref _llmReasoningEffort, value);
+        get => _proofreadLlmReasoningEffort;
+        set => SetField(ref _proofreadLlmReasoningEffort, value);
     }
 
-    public double SourceMaxChars
+    public bool ProofreadLlmLogIncludeSecrets
     {
-        get => _sourceMaxChars;
-        set => SetField(ref _sourceMaxChars, value);
+        get => _proofreadLlmLogIncludeSecrets;
+        set => SetField(ref _proofreadLlmLogIncludeSecrets, value);
     }
 
-    public double MinUpdateChars
+    public double ProofreadSourceMaxChars
     {
-        get => _minUpdateChars;
-        set => SetField(ref _minUpdateChars, value);
-    }
-
-    public double MaxSummaryChars
-    {
-        get => _maxSummaryChars;
-        set => SetField(ref _maxSummaryChars, value);
-    }
-
-    public double TtlMinutes
-    {
-        get => _ttlMinutes;
-        set => SetField(ref _ttlMinutes, value);
+        get => _proofreadSourceMaxChars;
+        set => SetField(ref _proofreadSourceMaxChars, value);
     }
 
     public void Load()
@@ -305,20 +355,30 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         VolcVadEndWindowSizeMs = cfg.Volc.VadEndWindowSizeMs;
         VolcVadForceToSpeechTimeMs = cfg.Volc.VadForceToSpeechTimeMs;
         VolcLanguage = cfg.Volc.Language;
-        VolcDebugLogRequests = cfg.Volc.DebugLogRequests;
         VolcDebugLogIncludeSecrets = cfg.Volc.DebugLogIncludeSecrets;
 
         DialogEnabled = cfg.DialogContext.Enabled;
-        ProofreadEnabled = cfg.DialogContext.ProofreadEnabled;
-        LlmEndpoint = cfg.DialogContext.LlmEndpoint;
-        LlmApiKey = cfg.DialogContext.LlmApiKey;
-        LlmModel = cfg.DialogContext.LlmModel;
-        LlmTemperature = cfg.DialogContext.LlmTemperature;
-        LlmReasoningEffort = cfg.DialogContext.LlmReasoningEffort;
-        SourceMaxChars = cfg.DialogContext.SourceMaxChars;
-        MinUpdateChars = cfg.DialogContext.MinUpdateChars;
-        MaxSummaryChars = cfg.DialogContext.MaxSummaryChars;
-        TtlMinutes = cfg.DialogContext.TtlMinutes;
+        DialogLlmEndpoint = cfg.DialogContext.LlmEndpoint;
+        DialogLlmApiKey = cfg.DialogContext.LlmApiKey;
+        DialogLlmModel = cfg.DialogContext.LlmModel;
+        DialogLlmTemperature = cfg.DialogContext.LlmTemperature;
+        DialogLlmReasoningEffort = cfg.DialogContext.LlmReasoningEffort;
+        DialogLlmLogIncludeSecrets = cfg.DialogContext.LlmLogIncludeSecrets;
+        DialogSourceMaxChars = cfg.DialogContext.SourceMaxChars;
+        DialogMinUpdateChars = cfg.DialogContext.MinUpdateChars;
+        DialogMaxSummaryChars = cfg.DialogContext.MaxSummaryChars;
+        DialogTtlMinutes = cfg.DialogContext.TtlMinutes;
+
+        // 兼容旧配置：若未配置校对，先用对话摘要的 LLM 设置做兜底展示
+        var proofread = cfg.ResolveProofreadConfig();
+        ProofreadEnabled = proofread.Enabled;
+        ProofreadLlmEndpoint = proofread.LlmEndpoint;
+        ProofreadLlmApiKey = proofread.LlmApiKey;
+        ProofreadLlmModel = proofread.LlmModel;
+        ProofreadLlmTemperature = proofread.LlmTemperature;
+        ProofreadLlmReasoningEffort = proofread.LlmReasoningEffort;
+        ProofreadLlmLogIncludeSecrets = proofread.LlmLogIncludeSecrets;
+        ProofreadSourceMaxChars = proofread.SourceMaxChars;
         _isLoading = false;
     }
 
@@ -353,22 +413,32 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
                     VadEndWindowSizeMs = ToInt(VolcVadEndWindowSizeMs, 800),
                     VadForceToSpeechTimeMs = ToInt(VolcVadForceToSpeechTimeMs, 1000),
                     Language = VolcLanguage.Trim(),
-                    DebugLogRequests = VolcDebugLogRequests,
                     DebugLogIncludeSecrets = VolcDebugLogIncludeSecrets
                 },
                 DialogContext = new DialogContextConfig
                 {
                     Enabled = DialogEnabled,
-                    ProofreadEnabled = ProofreadEnabled,
-                    LlmEndpoint = LlmEndpoint.Trim(),
-                    LlmApiKey = LlmApiKey.Trim(),
-                    LlmModel = LlmModel.Trim(),
-                    LlmTemperature = (float)LlmTemperature,
-                    LlmReasoningEffort = LlmReasoningEffort.Trim(),
-                    SourceMaxChars = ToInt(SourceMaxChars, 800),
-                    MinUpdateChars = ToInt(MinUpdateChars, 8),
-                    MaxSummaryChars = ToInt(MaxSummaryChars, 200),
-                    TtlMinutes = ToInt(TtlMinutes, 240)
+                    LlmEndpoint = DialogLlmEndpoint.Trim(),
+                    LlmApiKey = DialogLlmApiKey.Trim(),
+                    LlmModel = DialogLlmModel.Trim(),
+                    LlmTemperature = (float)DialogLlmTemperature,
+                    LlmReasoningEffort = DialogLlmReasoningEffort.Trim(),
+                    LlmLogIncludeSecrets = DialogLlmLogIncludeSecrets,
+                    SourceMaxChars = ToInt(DialogSourceMaxChars, 800),
+                    MinUpdateChars = ToInt(DialogMinUpdateChars, 8),
+                    MaxSummaryChars = ToInt(DialogMaxSummaryChars, 200),
+                    TtlMinutes = ToInt(DialogTtlMinutes, 240)
+                },
+                Proofread = new ProofreadConfig
+                {
+                    Enabled = ProofreadEnabled,
+                    LlmEndpoint = ProofreadLlmEndpoint.Trim(),
+                    LlmApiKey = ProofreadLlmApiKey.Trim(),
+                    LlmModel = ProofreadLlmModel.Trim(),
+                    LlmTemperature = (float)ProofreadLlmTemperature,
+                    LlmReasoningEffort = ProofreadLlmReasoningEffort.Trim(),
+                    LlmLogIncludeSecrets = ProofreadLlmLogIncludeSecrets,
+                    SourceMaxChars = ToInt(ProofreadSourceMaxChars, 800)
                 }
             };
 

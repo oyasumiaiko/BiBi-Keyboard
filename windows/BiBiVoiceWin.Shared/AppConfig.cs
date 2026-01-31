@@ -22,6 +22,7 @@ public sealed class AppConfig
 
     public VolcConfig Volc { get; init; } = new();
     public DialogContextConfig DialogContext { get; init; } = new();
+    public ProofreadConfig Proofread { get; init; } = new();
 
     public static (AppConfig Config, string ConfigPath, bool Created) LoadOrCreate()
     {
@@ -55,6 +56,32 @@ public sealed class AppConfig
             throw new InvalidOperationException($"无法解析配置文件：{configPath}");
         }
 
+        // 兼容旧配置：如果没有 Proofread 段，则尝试读取 DialogContext.ProofreadEnabled。
+        if (TryReadLegacyProofreadEnabled(content, out var legacyEnabled))
+        {
+            config = new AppConfig
+            {
+                Hotkey = config.Hotkey,
+                InsertMode = config.InsertMode,
+                AppendSpace = config.AppendSpace,
+                HoldToTalkEnabled = config.HoldToTalkEnabled,
+                HoldToTalkKey = config.HoldToTalkKey,
+                HoldToTalkMinHoldMs = config.HoldToTalkMinHoldMs,
+                TargetSampleRate = config.TargetSampleRate,
+                MaxRecordSeconds = config.MaxRecordSeconds,
+                AutoStopEnabled = config.AutoStopEnabled,
+                AutoStopSilenceMs = config.AutoStopSilenceMs,
+                AutoStopThresholdDb = config.AutoStopThresholdDb,
+                TranscribeWatchdogSeconds = config.TranscribeWatchdogSeconds,
+                Volc = config.Volc,
+                DialogContext = config.DialogContext,
+                Proofread = new ProofreadConfig
+                {
+                    Enabled = legacyEnabled
+                }
+            };
+        }
+
         return (config, configPath, false);
     }
 
@@ -64,6 +91,29 @@ public sealed class AppConfig
         if (!string.IsNullOrWhiteSpace(dir)) Directory.CreateDirectory(dir);
         var json = JsonSerializer.Serialize(config, JsonOptions);
         File.WriteAllText(path, json);
+    }
+
+    /// <summary>
+    /// 兼容旧配置：如果未单独填写校对配置，则回退使用对话上下文的 LLM 参数。
+    /// </summary>
+    public ProofreadConfig ResolveProofreadConfig()
+    {
+        var proofread = Proofread ?? new ProofreadConfig();
+        var dialog = DialogContext ?? new DialogContextConfig();
+
+        return new ProofreadConfig
+        {
+            Enabled = proofread.Enabled,
+            LlmEndpoint = string.IsNullOrWhiteSpace(proofread.LlmEndpoint) ? dialog.LlmEndpoint : proofread.LlmEndpoint,
+            LlmApiKey = string.IsNullOrWhiteSpace(proofread.LlmApiKey) ? dialog.LlmApiKey : proofread.LlmApiKey,
+            LlmModel = string.IsNullOrWhiteSpace(proofread.LlmModel) ? dialog.LlmModel : proofread.LlmModel,
+            LlmTemperature = proofread.LlmTemperature,
+            LlmReasoningEffort = string.IsNullOrWhiteSpace(proofread.LlmReasoningEffort)
+                ? dialog.LlmReasoningEffort
+                : proofread.LlmReasoningEffort,
+            LlmLogIncludeSecrets = proofread.LlmLogIncludeSecrets,
+            SourceMaxChars = proofread.SourceMaxChars > 0 ? proofread.SourceMaxChars : dialog.SourceMaxChars
+        };
     }
 
     private static AppConfig CreateExample()
@@ -94,22 +144,32 @@ public sealed class AppConfig
                 VadEndWindowSizeMs = 800,
                 VadForceToSpeechTimeMs = 1000,
                 Language = "",
-                DebugLogRequests = false,
                 DebugLogIncludeSecrets = false
             },
             DialogContext = new DialogContextConfig
             {
                 Enabled = false,
-                ProofreadEnabled = true,
                 LlmEndpoint = "https://openrouter.ai/api/v1/chat/completions",
                 LlmApiKey = "",
                 LlmModel = "google/gemini-3-flash-preview",
                 LlmTemperature = 0.2f,
                 LlmReasoningEffort = "low",
+                LlmLogIncludeSecrets = false,
                 SourceMaxChars = 800,
                 MinUpdateChars = 8,
                 MaxSummaryChars = 200,
                 TtlMinutes = 240
+            },
+            Proofread = new ProofreadConfig
+            {
+                Enabled = true,
+                LlmEndpoint = "https://openrouter.ai/api/v1/chat/completions",
+                LlmApiKey = "",
+                LlmModel = "google/gemini-3-flash-preview",
+                LlmTemperature = 0.2f,
+                LlmReasoningEffort = "low",
+                LlmLogIncludeSecrets = false,
+                SourceMaxChars = 800
             }
         };
     }
@@ -121,6 +181,24 @@ public sealed class AppConfig
         AllowTrailingCommas = true,
         WriteIndented = true
     };
+
+    private static bool TryReadLegacyProofreadEnabled(string json, out bool enabled)
+    {
+        enabled = false;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("Proofread", out _)) return false;
+            if (!doc.RootElement.TryGetProperty("DialogContext", out var dialog)) return false;
+            if (!dialog.TryGetProperty("ProofreadEnabled", out var legacy)) return false;
+            enabled = legacy.GetBoolean();
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }
 
 public sealed class VolcConfig
@@ -135,21 +213,19 @@ public sealed class VolcConfig
     public int VadEndWindowSizeMs { get; init; } = 800;
     public int VadForceToSpeechTimeMs { get; init; } = 1000;
     public string Language { get; init; } = "";
-    // 记录每次 ASR 请求的完整参数（含 dialog_ctx 文本），便于排查问题。
-    public bool DebugLogRequests { get; init; } = false;
     // 是否把密钥原文写入日志（高风险，默认关闭）。
     public bool DebugLogIncludeSecrets { get; init; } = false;
 }
 
-public sealed class DialogContextConfig
+public sealed class DialogContextConfig : ILlmConfig
 {
     public bool Enabled { get; init; } = false;
-    public bool ProofreadEnabled { get; init; } = true;
     public string LlmEndpoint { get; init; } = "https://openrouter.ai/api/v1/chat/completions";
     public string LlmApiKey { get; init; } = "";
     public string LlmModel { get; init; } = "google/gemini-3-flash-preview";
     public float LlmTemperature { get; init; } = 0.2f;
     public string LlmReasoningEffort { get; init; } = "low";
+    public bool LlmLogIncludeSecrets { get; init; } = false;
 
     // 单次输入给 LLM 的最大字符数（防止超长文本拖慢）
     public int SourceMaxChars { get; init; } = 800;
@@ -159,4 +235,29 @@ public sealed class DialogContextConfig
     public int MaxSummaryChars { get; init; } = 200;
     // 上下文过期时间（分钟）
     public int TtlMinutes { get; init; } = 240;
+}
+
+public sealed class ProofreadConfig
+    : ILlmConfig
+{
+    public bool Enabled { get; init; } = true;
+    public string LlmEndpoint { get; init; } = "https://openrouter.ai/api/v1/chat/completions";
+    public string LlmApiKey { get; init; } = "";
+    public string LlmModel { get; init; } = "google/gemini-3-flash-preview";
+    public float LlmTemperature { get; init; } = 0.2f;
+    public string LlmReasoningEffort { get; init; } = "low";
+    public bool LlmLogIncludeSecrets { get; init; } = false;
+
+    // 单次输入给 LLM 的最大字符数（防止超长文本拖慢）
+    public int SourceMaxChars { get; init; } = 800;
+}
+
+public interface ILlmConfig
+{
+    string LlmEndpoint { get; }
+    string LlmApiKey { get; }
+    string LlmModel { get; }
+    float LlmTemperature { get; }
+    string LlmReasoningEffort { get; }
+    bool LlmLogIncludeSecrets { get; }
 }

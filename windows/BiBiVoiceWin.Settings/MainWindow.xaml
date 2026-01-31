@@ -34,6 +34,8 @@
                     <controls:NavigationViewItem Content="常用" Tag="general" Icon="Home" />
                     <controls:NavigationViewItem Content="录音" Tag="record" Icon="Microphone" />
                     <controls:NavigationViewItem Content="语音识别" Tag="asr" Icon="ContactInfo" />
+                    <controls:NavigationViewItem Content="上下文" Tag="context" Icon="Document" />
+                    <controls:NavigationViewItem Content="校对" Tag="proofread" Icon="Edit" />
                     <controls:NavigationViewItem Content="高级" Tag="advanced" Icon="Setting" />
                 </controls:NavigationView.MenuItems>
                 <Grid Padding="0">
@@ -95,6 +97,71 @@
                             <TextBlock Text="推荐开关" Style="{StaticResource SectionHeaderTextStyle}" />
                             <ToggleSwitch Header="开启语义顺滑（推荐）" IsOn="{Binding VolcEnableDdc, Mode=TwoWay}" />
                             <ToggleSwitch Header="开启二遍识别（推荐）" IsOn="{Binding VolcEnableNonstream, Mode=TwoWay}" />
+
+                            <Rectangle Height="1" Fill="{ThemeResource CardBorderBrush}" Margin="0,6,0,6" />
+
+                            <TextBlock Text="识别高级" Style="{StaticResource SectionHeaderTextStyle}" />
+                            <TextBox Header="Endpoint" Text="{Binding VolcEndpoint, Mode=TwoWay}" />
+                            <TextBox Header="Language（可选）" Text="{Binding VolcLanguage, Mode=TwoWay}" />
+                            <ToggleSwitch Header="启用 VAD 分句" IsOn="{Binding VolcEnableVad, Mode=TwoWay}" />
+                            <NumberBox Header="VAD 结束窗口（毫秒）" Value="{Binding VolcVadEndWindowSizeMs, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                            <NumberBox Header="VAD 强制语音阈值（毫秒）" Value="{Binding VolcVadForceToSpeechTimeMs, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+
+                            <Rectangle Height="1" Fill="{ThemeResource CardBorderBrush}" Margin="0,6,0,6" />
+
+                            <TextBlock Text="日志" Style="{StaticResource SectionHeaderTextStyle}" />
+                            <ToggleSwitch Header="记录密钥与上下文到日志（危险）" IsOn="{Binding VolcDebugLogIncludeSecrets, Mode=TwoWay}" />
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <ScrollViewer x:Name="PageContext"
+                                  Visibility="Collapsed"
+                                  VerticalScrollBarVisibility="Auto"
+                                  VerticalScrollMode="Enabled"
+                                  IsVerticalScrollChainingEnabled="True"
+                                  IsVerticalRailEnabled="True"
+                                  IsScrollInertiaEnabled="True">
+                        <StackPanel Spacing="6" Margin="12,8,12,12">
+                            <TextBlock Text="对话上下文摘要" Style="{StaticResource SectionHeaderTextStyle}" />
+                            <ToggleSwitch Header="启用对话上下文摘要（用于 dialog_ctx）" IsOn="{Binding DialogEnabled, Mode=TwoWay}" />
+                            <NumberBox Header="摘要输入上限（字符）" Value="{Binding DialogSourceMaxChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                            <NumberBox Header="触发摘要最小长度（字符）" Value="{Binding DialogMinUpdateChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                            <NumberBox Header="摘要最大长度（字符）" Value="{Binding DialogMaxSummaryChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                            <NumberBox Header="摘要过期时间（分钟）" Value="{Binding DialogTtlMinutes, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+
+                            <Rectangle Height="1" Fill="{ThemeResource CardBorderBrush}" Margin="0,6,0,6" />
+
+                            <TextBlock Text="摘要 LLM" Style="{StaticResource SectionHeaderTextStyle}" />
+                            <TextBox Header="LLM Endpoint" Text="{Binding DialogLlmEndpoint, Mode=TwoWay}" />
+                            <TextBox Header="LLM API Key" Text="{Binding DialogLlmApiKey, Mode=TwoWay}" />
+                            <TextBox Header="LLM Model" Text="{Binding DialogLlmModel, Mode=TwoWay}" />
+                            <NumberBox Header="Temperature" Value="{Binding DialogLlmTemperature, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                            <TextBox Header="推理努力程度（low/medium/high）" Text="{Binding DialogLlmReasoningEffort, Mode=TwoWay}" />
+                            <ToggleSwitch Header="记录密钥与上下文到日志（危险）" IsOn="{Binding DialogLlmLogIncludeSecrets, Mode=TwoWay}" />
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <ScrollViewer x:Name="PageProofread"
+                                  Visibility="Collapsed"
+                                  VerticalScrollBarVisibility="Auto"
+                                  VerticalScrollMode="Enabled"
+                                  IsVerticalScrollChainingEnabled="True"
+                                  IsVerticalRailEnabled="True"
+                                  IsScrollInertiaEnabled="True">
+                        <StackPanel Spacing="6" Margin="12,8,12,12">
+                            <TextBlock Text="输入校对" Style="{StaticResource SectionHeaderTextStyle}" />
+                            <ToggleSwitch Header="启用语音校对（输入完成后自动修正）" IsOn="{Binding ProofreadEnabled, Mode=TwoWay}" />
+                            <NumberBox Header="校对输入上限（字符）" Value="{Binding ProofreadSourceMaxChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+
+                            <Rectangle Height="1" Fill="{ThemeResource CardBorderBrush}" Margin="0,6,0,6" />
+
+                            <TextBlock Text="校对 LLM" Style="{StaticResource SectionHeaderTextStyle}" />
+                            <TextBox Header="LLM Endpoint" Text="{Binding ProofreadLlmEndpoint, Mode=TwoWay}" />
+                            <TextBox Header="LLM API Key" Text="{Binding ProofreadLlmApiKey, Mode=TwoWay}" />
+                            <TextBox Header="LLM Model" Text="{Binding ProofreadLlmModel, Mode=TwoWay}" />
+                            <NumberBox Header="Temperature" Value="{Binding ProofreadLlmTemperature, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                            <TextBox Header="推理努力程度（low/medium/high）" Text="{Binding ProofreadLlmReasoningEffort, Mode=TwoWay}" />
+                            <ToggleSwitch Header="记录密钥与上下文到日志（危险）" IsOn="{Binding ProofreadLlmLogIncludeSecrets, Mode=TwoWay}" />
                         </StackPanel>
                     </ScrollViewer>
 
@@ -122,38 +189,8 @@
 
                             <Rectangle Height="1" Fill="{ThemeResource CardBorderBrush}" Margin="0,6,0,6" />
 
-                            <TextBlock Text="识别高级" Style="{StaticResource SectionHeaderTextStyle}" />
-                            <TextBox Header="Endpoint" Text="{Binding VolcEndpoint, Mode=TwoWay}" />
-                            <TextBox Header="Language（可选）" Text="{Binding VolcLanguage, Mode=TwoWay}" />
-                            <ToggleSwitch Header="启用 VAD 分句" IsOn="{Binding VolcEnableVad, Mode=TwoWay}" />
-                            <NumberBox Header="VAD 结束窗口（毫秒）" Value="{Binding VolcVadEndWindowSizeMs, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
-                            <NumberBox Header="VAD 强制语音阈值（毫秒）" Value="{Binding VolcVadForceToSpeechTimeMs, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                            <TextBlock Text="运行保护" Style="{StaticResource SectionHeaderTextStyle}" />
                             <NumberBox Header="收尾卡死自动重置（秒）" Value="{Binding TranscribeWatchdogSeconds, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
-                            <ToggleSwitch Header="记录 ASR 请求参数（写入日志）" IsOn="{Binding VolcDebugLogRequests, Mode=TwoWay}" />
-                            <ToggleSwitch Header="记录密钥与上下文到日志（危险）" IsOn="{Binding VolcDebugLogIncludeSecrets, Mode=TwoWay}" />
-
-                            <Rectangle Height="1" Fill="{ThemeResource CardBorderBrush}" Margin="0,6,0,6" />
-
-                            <TextBlock Text="对话上下文" Style="{StaticResource SectionHeaderTextStyle}" />
-                            <ToggleSwitch Header="启用对话上下文摘要（用于 dialog_ctx）" IsOn="{Binding DialogEnabled, Mode=TwoWay}" />
-
-                            <Rectangle Height="1" Fill="{ThemeResource CardBorderBrush}" Margin="0,6,0,6" />
-
-                            <TextBlock Text="上下文校对" Style="{StaticResource SectionHeaderTextStyle}" />
-                            <ToggleSwitch Header="启用语音校对（输入完成后自动修正）" IsOn="{Binding ProofreadEnabled, Mode=TwoWay}" />
-                            <TextBox Header="推理努力程度（low/medium/high）" Text="{Binding LlmReasoningEffort, Mode=TwoWay}" />
-
-                            <Rectangle Height="1" Fill="{ThemeResource CardBorderBrush}" Margin="0,6,0,6" />
-
-                            <TextBlock Text="LLM 参数" Style="{StaticResource SectionHeaderTextStyle}" />
-                            <TextBox Header="LLM Endpoint" Text="{Binding LlmEndpoint, Mode=TwoWay}" />
-                            <TextBox Header="LLM API Key" Text="{Binding LlmApiKey, Mode=TwoWay}" />
-                            <TextBox Header="LLM Model" Text="{Binding LlmModel, Mode=TwoWay}" />
-                            <NumberBox Header="Temperature" Value="{Binding LlmTemperature, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
-                            <NumberBox Header="SourceMaxChars（摘要/校对共用）" Value="{Binding SourceMaxChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
-                            <NumberBox Header="MinUpdateChars（摘要）" Value="{Binding MinUpdateChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
-                            <NumberBox Header="MaxSummaryChars（摘要）" Value="{Binding MaxSummaryChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
-                            <NumberBox Header="TTL（分钟）" Value="{Binding TtlMinutes, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>
