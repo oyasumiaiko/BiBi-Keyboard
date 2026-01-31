@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Drawing;
+using System.IO;
 using System.Threading;
 using System.Threading.Channels;
 using System.Windows.Forms;
@@ -28,15 +29,20 @@ public sealed class TrayAppContext : ApplicationContext
     private readonly SynchronizationContext _uiContext;
     private Icon? _dynamicIcon;
 
-    private readonly AppConfig _cfg;
-    private readonly string _configPath;
-    private readonly HotkeyManager? _hotkey;
-    private readonly KeyboardHook? _keyboardHook;
+    private AppConfig _cfg;
+    private string _configPath;
+    private HotkeyManager? _hotkey;
+    private KeyboardHook? _keyboardHook;
     private readonly AudioRecorder _recorder;
-    private readonly VolcStreamAsrClient _asr;
-    private readonly TextInserter _inserter;
-    private readonly DialogContextManager _dialogContext;
-    private readonly InputProofreader _proofreader;
+    private VolcStreamAsrClient _asr = null!;
+    private TextInserter _inserter = null!;
+    private DialogContextManager _dialogContext = null!;
+    private InputProofreader _proofreader = null!;
+    private FileSystemWatcher? _configWatcher;
+    private System.Threading.Timer? _reloadTimer;
+    private readonly object _reloadLock = new();
+    private bool _pendingReload;
+    private bool _reloading;
 
     private AppState _state = AppState.Idle;
     private IntPtr _targetWindow = IntPtr.Zero;
@@ -60,9 +66,10 @@ public sealed class TrayAppContext : ApplicationContext
     private int _preRollBytes;
     private int _preRollMaxBytes;
     private DateTimeOffset _transcribeStartedAt = DateTimeOffset.MinValue;
-    private readonly TimeSpan _transcribeWatchdogTimeout;
+    private TimeSpan _transcribeWatchdogTimeout;
     private const int MinTranscribeWatchdogSeconds = 5;
     private const int MaxTranscribeWatchdogSeconds = 120;
+    private const int ReloadDelayMs = 300;
     private bool _finalReceived;
     private bool _restartAfterFinalize;
 
@@ -84,10 +91,6 @@ public sealed class TrayAppContext : ApplicationContext
         var (cfg, configPath, created) = AppConfig.LoadOrCreate();
         _cfg = cfg;
         _configPath = configPath;
-        _holdMinMs = Math.Max(80, _cfg.HoldToTalkMinHoldMs);
-        var watchdogSeconds = _cfg.TranscribeWatchdogSeconds <= 0 ? 15 : _cfg.TranscribeWatchdogSeconds;
-        watchdogSeconds = Math.Clamp(watchdogSeconds, MinTranscribeWatchdogSeconds, MaxTranscribeWatchdogSeconds);
-        _transcribeWatchdogTimeout = TimeSpan.FromSeconds(watchdogSeconds);
 
         _recorder = new AudioRecorder();
         _recorder.AutoStopRequested += reason =>
@@ -99,10 +102,7 @@ public sealed class TrayAppContext : ApplicationContext
         };
         _recorder.Pcm16ChunkAvailable += OnPcm16Chunk;
 
-        _asr = new VolcStreamAsrClient(_cfg.Volc);
-        _inserter = new TextInserter(InsertModeParser.ParseOrDefault(_cfg.InsertMode), _cfg.AppendSpace);
-        _dialogContext = new DialogContextManager(_cfg.DialogContext);
-        _proofreader = new InputProofreader(_cfg.DialogContext);
+        ApplyConfig(cfg, configPath, initial: true);
 
         _toggleItem = new ToolStripMenuItem("开始录音");
         _toggleItem.Click += async (_, _) => await ToggleAsync();
@@ -143,47 +143,7 @@ public sealed class TrayAppContext : ApplicationContext
         _uiTimer.Start();
         _uiTimer.Tick += (_, _) => CheckTranscribeWatchdog();
 
-        // 按住说话（优先）或全局热键（兜底）
-        var holdErr = "";
-        if (_cfg.HoldToTalkEnabled && KeyParser.TryParseSingleKey(_cfg.HoldToTalkKey, out var holdKey, out holdErr))
-        {
-            try
-            {
-                _holdKey = holdKey;
-                _keyboardHook = new KeyboardHook();
-                _keyboardHook.KeyEvent += OnHoldKeyEvent;
-                LogStatus("按住说话", $"按键：{_cfg.HoldToTalkKey}，长按阈值 {_holdMinMs}ms");
-            }
-            catch (Exception ex)
-            {
-                LogStatus("键盘钩子失败", ex.Message);
-            }
-        }
-        else
-        {
-            if (_cfg.HoldToTalkEnabled)
-            {
-                LogStatus("按住说话配置错误", holdErr);
-            }
-
-            // 注册全局热键
-            if (HotkeySpecParser.TryParse(_cfg.Hotkey, out var spec, out var err))
-            {
-                try
-                {
-                    _hotkey = new HotkeyManager(spec);
-                    _hotkey.Pressed += async (_, _) => await ToggleAsync();
-                }
-                catch (Exception ex)
-                {
-                    LogStatus("热键注册失败", ex.Message);
-                }
-            }
-            else
-            {
-                LogStatus("热键配置错误", err);
-            }
-        }
+        // 配置加载与热键注册已在 ApplyConfig 中完成
 
         LogStatus("BiBiVoiceWin 已启动", $"热键：{_cfg.Hotkey} 配置：{_configPath}");
         LogStatus("日志路径", AppLogger.LogPath);
@@ -213,6 +173,7 @@ public sealed class TrayAppContext : ApplicationContext
     private void StartRecording(bool holdToTalkSession = false, bool deferStreaming = false)
     {
         if (_state != AppState.Idle) return;
+        TryApplyPendingReload();
 
         ResetPreRollBuffer();
         _finalReceived = false;
@@ -352,6 +313,7 @@ public sealed class TrayAppContext : ApplicationContext
             _toggleItem.Text = "开始录音";
             _tray.Text = "BiBiVoiceWin";
             UpdateTrayIcon();
+            TryApplyPendingReload();
             if (!TryRestartAfterFinalize())
             {
                 ResetHoldState();
@@ -388,6 +350,7 @@ public sealed class TrayAppContext : ApplicationContext
             CleanupStreamingSession();
             ResetPreRollBuffer();
             _preExistingInputText = null;
+            TryApplyPendingReload();
         }
     }
 
@@ -736,7 +699,169 @@ public sealed class TrayAppContext : ApplicationContext
         _toggleItem.Text = "开始录音";
         _tray.Text = "BiBiVoiceWin";
         UpdateTrayIcon();
+        TryApplyPendingReload();
         ResetHoldState();
+    }
+
+    private void ApplyConfig(AppConfig cfg, string configPath, bool initial)
+    {
+        _cfg = cfg;
+        _configPath = configPath;
+        _holdMinMs = Math.Max(80, _cfg.HoldToTalkMinHoldMs);
+        UpdateWatchdogTimeout();
+
+        // 这些组件依赖配置，需在热更新时重建
+        _asr = new VolcStreamAsrClient(_cfg.Volc);
+        _inserter = new TextInserter(InsertModeParser.ParseOrDefault(_cfg.InsertMode), _cfg.AppendSpace);
+        _dialogContext = new DialogContextManager(_cfg.DialogContext);
+        _proofreader = new InputProofreader(_cfg.DialogContext);
+
+        RebuildInputHooks();
+        InitConfigWatcher(_configPath);
+
+        if (!initial)
+        {
+            LogStatus("配置已应用", "新的配置已在空闲状态生效");
+        }
+    }
+
+    private void UpdateWatchdogTimeout()
+    {
+        var watchdogSeconds = _cfg.TranscribeWatchdogSeconds <= 0 ? 15 : _cfg.TranscribeWatchdogSeconds;
+        watchdogSeconds = Math.Clamp(watchdogSeconds, MinTranscribeWatchdogSeconds, MaxTranscribeWatchdogSeconds);
+        _transcribeWatchdogTimeout = TimeSpan.FromSeconds(watchdogSeconds);
+    }
+
+    private void RebuildInputHooks()
+    {
+        _hotkey?.Dispose();
+        _hotkey = null;
+        _keyboardHook?.Dispose();
+        _keyboardHook = null;
+        ResetHoldState();
+
+        // 按住说话（优先）或全局热键（兜底）
+        var holdErr = "";
+        if (_cfg.HoldToTalkEnabled && KeyParser.TryParseSingleKey(_cfg.HoldToTalkKey, out var holdKey, out holdErr))
+        {
+            try
+            {
+                _holdKey = holdKey;
+                _keyboardHook = new KeyboardHook();
+                _keyboardHook.KeyEvent += OnHoldKeyEvent;
+                LogStatus("按住说话", $"按键：{_cfg.HoldToTalkKey}，长按阈值 {_holdMinMs}ms");
+                return;
+            }
+            catch (Exception ex)
+            {
+                LogStatus("键盘钩子失败", ex.Message);
+            }
+        }
+        else if (_cfg.HoldToTalkEnabled)
+        {
+            LogStatus("按住说话配置错误", holdErr);
+        }
+
+        if (HotkeySpecParser.TryParse(_cfg.Hotkey, out var spec, out var err))
+        {
+            try
+            {
+                _hotkey = new HotkeyManager(spec);
+                _hotkey.Pressed += async (_, _) => await ToggleAsync();
+            }
+            catch (Exception ex)
+            {
+                LogStatus("热键注册失败", ex.Message);
+            }
+        }
+        else
+        {
+            LogStatus("热键配置错误", err);
+        }
+    }
+
+    private void InitConfigWatcher(string path)
+    {
+        var dir = Path.GetDirectoryName(path);
+        var file = Path.GetFileName(path);
+        if (string.IsNullOrWhiteSpace(dir) || string.IsNullOrWhiteSpace(file)) return;
+
+        if (_configWatcher is not null)
+        {
+            if (string.Equals(_configWatcher.Path, dir, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(_configWatcher.Filter, file, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            _configWatcher.EnableRaisingEvents = false;
+            _configWatcher.Dispose();
+            _configWatcher = null;
+        }
+
+        _configWatcher = new FileSystemWatcher(dir, file)
+        {
+            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.Size
+        };
+        _configWatcher.Changed += (_, _) => ScheduleReload("文件变更");
+        _configWatcher.Created += (_, _) => ScheduleReload("文件创建");
+        _configWatcher.Renamed += (_, _) => ScheduleReload("文件重命名");
+        _configWatcher.Deleted += (_, _) => ScheduleReload("文件删除");
+        _configWatcher.EnableRaisingEvents = true;
+    }
+
+    private void ScheduleReload(string reason)
+    {
+        lock (_reloadLock)
+        {
+            _reloadTimer?.Dispose();
+            _reloadTimer = new System.Threading.Timer(state =>
+            {
+                var msg = state as string ?? "文件变更";
+                PostToUiAction(() => ReloadConfig(msg));
+            }, reason, ReloadDelayMs, Timeout.Infinite);
+        }
+    }
+
+    private void ReloadConfig(string reason)
+    {
+        if (_reloading) return;
+
+        if (_state != AppState.Idle)
+        {
+            _pendingReload = true;
+            LogStatus("配置更新", "检测到变更，将在空闲时生效");
+            return;
+        }
+
+        ApplyReload(reason);
+    }
+
+    private void TryApplyPendingReload()
+    {
+        if (!_pendingReload) return;
+        _pendingReload = false;
+        ApplyReload("空闲自动应用");
+    }
+
+    private void ApplyReload(string reason)
+    {
+        if (_reloading) return;
+        _reloading = true;
+        try
+        {
+            var (cfg, path, _) = AppConfig.LoadOrCreate();
+            ApplyConfig(cfg, path, initial: false);
+            LogStatus("配置已更新", $"来源：{reason}");
+        }
+        catch (Exception ex)
+        {
+            LogStatus("配置更新失败", ex.Message);
+        }
+        finally
+        {
+            _reloading = false;
+        }
     }
 
     private void OpenConfigFile()
@@ -799,6 +924,8 @@ public sealed class TrayAppContext : ApplicationContext
         _menu.Dispose();
         _hotkey?.Dispose();
         _keyboardHook?.Dispose();
+        _configWatcher?.Dispose();
+        _reloadTimer?.Dispose();
         _holdTimer?.Dispose();
         _recorder.Dispose();
         ExitThread();
