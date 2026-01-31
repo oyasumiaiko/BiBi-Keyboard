@@ -714,6 +714,7 @@ public sealed class TrayAppContext : ApplicationContext
     {
         if (_state != AppState.Transcribing) return;
         if (_transcribeStartedAt == DateTimeOffset.MinValue) return;
+        if (_finalReceived) return;
         if (DateTimeOffset.UtcNow - _transcribeStartedAt < _transcribeWatchdogTimeout) return;
 
         // 兜底：识别流程卡住时强制清理，避免托盘状态一直亮且无法继续使用。
