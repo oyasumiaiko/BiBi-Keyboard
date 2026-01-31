@@ -36,15 +36,14 @@
                     <controls:NavigationViewItem Content="语音识别" Tag="asr" Icon="ContactInfo" />
                     <controls:NavigationViewItem Content="高级" Tag="advanced" Icon="Setting" />
                 </controls:NavigationView.MenuItems>
-                <Grid Padding="12,8,12,12">
+                <Grid Padding="0">
                     <ScrollViewer x:Name="PageGeneral"
-                                  Padding="0"
                                   VerticalScrollBarVisibility="Auto"
                                   VerticalScrollMode="Enabled"
                                   IsVerticalScrollChainingEnabled="True"
                                   IsVerticalRailEnabled="True"
                                   IsScrollInertiaEnabled="True">
-                        <StackPanel Spacing="6" Margin="0">
+                        <StackPanel Spacing="6" Margin="12,8,12,12">
                             <TextBlock Text="按住说话" Style="{StaticResource SectionHeaderTextStyle}" />
                             <ToggleSwitch Header="启用按住说话" IsOn="{Binding HoldToTalkEnabled, Mode=TwoWay}" />
                             <TextBox Header="按住说话按键" Text="{Binding HoldToTalkKey, Mode=TwoWay}" />
@@ -58,14 +57,13 @@
                     </ScrollViewer>
 
                     <ScrollViewer x:Name="PageRecord"
-                                  Padding="0"
                                   Visibility="Collapsed"
                                   VerticalScrollBarVisibility="Auto"
                                   VerticalScrollMode="Enabled"
                                   IsVerticalScrollChainingEnabled="True"
                                   IsVerticalRailEnabled="True"
                                   IsScrollInertiaEnabled="True">
-                        <StackPanel Spacing="6" Margin="0">
+                        <StackPanel Spacing="6" Margin="12,8,12,12">
                             <TextBlock Text="录音设置" Style="{StaticResource SectionHeaderTextStyle}" />
                             <NumberBox Header="最大录音时长（秒）" Value="{Binding MaxRecordSeconds, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
                             <NumberBox Header="采样率（Hz）" Value="{Binding TargetSampleRate, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
@@ -80,14 +78,13 @@
                     </ScrollViewer>
 
                     <ScrollViewer x:Name="PageAsr"
-                                  Padding="0"
                                   Visibility="Collapsed"
                                   VerticalScrollBarVisibility="Auto"
                                   VerticalScrollMode="Enabled"
                                   IsVerticalScrollChainingEnabled="True"
                                   IsVerticalRailEnabled="True"
                                   IsScrollInertiaEnabled="True">
-                        <StackPanel Spacing="6" Margin="0">
+                        <StackPanel Spacing="6" Margin="12,8,12,12">
                             <TextBlock Text="密钥" Style="{StaticResource SectionHeaderTextStyle}" />
                             <TextBox Header="AppKey（App ID）" Text="{Binding VolcAppKey, Mode=TwoWay}" />
                             <TextBox Header="AccessKey（Access Token）" Text="{Binding VolcAccessKey, Mode=TwoWay}" />
@@ -102,14 +99,13 @@
                     </ScrollViewer>
 
                     <ScrollViewer x:Name="PageAdvanced"
-                                  Padding="0"
                                   Visibility="Collapsed"
                                   VerticalScrollBarVisibility="Auto"
                                   VerticalScrollMode="Enabled"
                                   IsVerticalScrollChainingEnabled="True"
                                   IsVerticalRailEnabled="True"
                                   IsScrollInertiaEnabled="True">
-                        <StackPanel Spacing="6" Margin="0">
+                        <StackPanel Spacing="6" Margin="12,8,12,12">
                             <TextBlock Text="配置文件" Style="{StaticResource SectionHeaderTextStyle}" />
                             <TextBlock Text="{Binding ConfigPath}" Opacity="0.7" TextWrapping="Wrap" />
                             <StackPanel Orientation="Horizontal" Spacing="8">
