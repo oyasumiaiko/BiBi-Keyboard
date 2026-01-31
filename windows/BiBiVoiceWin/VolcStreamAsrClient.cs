@@ -1,7 +1,9 @@
 using System.IO.Compression;
 using System.Net.WebSockets;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading.Channels;
 
 namespace BiBiVoiceWin;
@@ -562,7 +564,7 @@ public sealed class VolcStreamAsrClient
         var appKey = _cfg.DebugLogIncludeSecrets ? _cfg.AppKey : MaskSecret(_cfg.AppKey);
         var accessKey = _cfg.DebugLogIncludeSecrets ? _cfg.AccessKey : MaskSecret(_cfg.AccessKey);
         var dialogLen = string.IsNullOrWhiteSpace(dialogContext) ? 0 : dialogContext!.Length;
-        var payload = _cfg.DebugLogIncludeSecrets ? fullJson : MaskUid(fullJson, _cfg.AppKey);
+        var payload = BuildLogJson(fullJson);
 
         AppLogger.Status(
             "ASR请求",
@@ -571,11 +573,28 @@ public sealed class VolcStreamAsrClient
         AppLogger.Status("ASR请求", $"FullRequest: {payload}");
     }
 
-    private static string MaskUid(string json, string uid)
+    private string BuildLogJson(string json)
     {
-        if (string.IsNullOrWhiteSpace(uid)) return json;
-        var masked = MaskSecret(uid);
-        return json.Replace($"\"uid\":\"{uid}\"", $"\"uid\":\"{masked}\"");
+        try
+        {
+            var node = JsonNode.Parse(json);
+            if (node is JsonObject root && root["user"] is JsonObject user)
+            {
+                if (!_cfg.DebugLogIncludeSecrets && user["uid"] is JsonNode)
+                {
+                    user["uid"] = MaskSecret(_cfg.AppKey);
+                }
+            }
+
+            return node?.ToJsonString(new JsonSerializerOptions
+            {
+                Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+            }) ?? json;
+        }
+        catch
+        {
+            return json;
+        }
     }
 
     private static string MaskSecret(string value)
