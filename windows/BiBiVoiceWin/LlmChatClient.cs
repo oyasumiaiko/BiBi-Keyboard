@@ -88,35 +88,24 @@ internal sealed class LlmChatClient
         }
 
         var body = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-        LogResponse(resp, body);
+        var normalizedBody = body?.Trim() ?? string.Empty;
         if (!resp.IsSuccessStatusCode)
         {
+            LogResponseError(resp, normalizedBody);
             AppLogger.Status(_logPrefix, $"LLM 返回错误 {((int)resp.StatusCode)}");
             return null;
         }
 
-        try
+        if (!TryExtractContent(normalizedBody, out var content, out var error))
         {
-            using var doc = JsonDocument.Parse(body);
-            if (doc.RootElement.TryGetProperty("choices", out var choices) && choices.GetArrayLength() > 0)
-            {
-                var choice = choices[0];
-                if (choice.TryGetProperty("message", out var msg) && msg.TryGetProperty("content", out var content))
-                {
-                    return content.GetString()?.Trim();
-                }
-                if (choice.TryGetProperty("text", out var text))
-                {
-                    return text.GetString()?.Trim();
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            AppLogger.Status(_logPrefix, $"LLM 响应解析失败: {ex.Message}");
+            LogResponseError(resp, normalizedBody);
+            AppLogger.Status(_logPrefix, $"LLM 响应解析失败: {error}");
+            return null;
         }
 
-        return null;
+        var normalizedContent = content?.Trim() ?? string.Empty;
+        AppLogger.Status($"{_logPrefix}响应", $"Content: {normalizedContent}");
+        return normalizedContent;
     }
 
     private void LogRequest(string payloadJson)
@@ -126,13 +115,51 @@ internal sealed class LlmChatClient
         AppLogger.Status($"{_logPrefix}请求", $"Payload: {payloadJson}");
     }
 
-    private void LogResponse(HttpResponseMessage resp, string body)
+    private void LogResponseError(HttpResponseMessage resp, string body)
     {
         var status = $"{(int)resp.StatusCode} {resp.ReasonPhrase}".Trim();
         AppLogger.Status($"{_logPrefix}响应", $"Status: {status}");
         if (!string.IsNullOrWhiteSpace(body))
         {
             AppLogger.Status($"{_logPrefix}响应", $"Body: {body}");
+        }
+    }
+
+    private static bool TryExtractContent(string body, out string? content, out string? error)
+    {
+        content = null;
+        error = null;
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            error = "empty response body";
+            return false;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.TryGetProperty("choices", out var choices) && choices.GetArrayLength() > 0)
+            {
+                var choice = choices[0];
+                if (choice.TryGetProperty("message", out var msg) && msg.TryGetProperty("content", out var msgContent))
+                {
+                    content = msgContent.GetString();
+                    return true;
+                }
+                if (choice.TryGetProperty("text", out var text))
+                {
+                    content = text.GetString();
+                    return true;
+                }
+            }
+
+            error = "missing choices content";
+            return false;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
         }
     }
 
