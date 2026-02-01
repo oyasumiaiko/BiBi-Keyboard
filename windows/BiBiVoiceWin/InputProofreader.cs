@@ -6,17 +6,25 @@ namespace BiBiVoiceWin;
 internal sealed class InputProofreader
 {
     private readonly ProofreadConfig _cfg;
-    private readonly LlmChatClient _client;
+    private readonly LlmChatClient? _client;
 
-    public InputProofreader(ProofreadConfig cfg)
+    public InputProofreader(ProofreadConfig cfg, ApiProfile? profile)
     {
         _cfg = cfg;
-        _client = new LlmChatClient(cfg, "校对");
+        if (profile is not null)
+        {
+            _client = new LlmChatClient(profile, "校对");
+        }
     }
 
     public async Task<string?> ProofreadAsync(string? existingText, string finalText, CancellationToken ct)
     {
         if (!_cfg.Enabled) return null;
+        if (_client is null)
+        {
+            AppLogger.Status("校对", "API 配置缺失，已跳过");
+            return null;
+        }
 
         var input = Normalize(finalText);
         if (string.IsNullOrWhiteSpace(input)) return null;

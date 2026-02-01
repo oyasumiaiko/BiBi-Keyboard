@@ -24,14 +24,21 @@
     "Language": "",
     "DebugLogIncludeSecrets": false
   },
+  "ApiProfiles": [
+    {
+      "Id": "default",
+      "Name": "默认",
+      "Endpoint": "https://openrouter.ai/api/v1/chat/completions",
+      "ApiKey": "",
+      "Model": "google/gemini-3-flash-preview",
+      "Temperature": 0.2,
+      "ReasoningEffort": "low",
+      "LogIncludeSecrets": false
+    }
+  ],
   "DialogContext": {
     "Enabled": false,
-    "LlmEndpoint": "https://openrouter.ai/api/v1/chat/completions",
-    "LlmApiKey": "",
-    "LlmModel": "google/gemini-3-flash-preview",
-    "LlmTemperature": 0.2,
-    "LlmReasoningEffort": "low",
-    "LlmLogIncludeSecrets": false,
+    "ApiProfileId": "default",
     "SourceMaxChars": 800,
     "MinUpdateChars": 8,
     "MaxSummaryChars": 200,
@@ -39,12 +46,7 @@
   },
   "Proofread": {
     "Enabled": true,
-    "LlmEndpoint": "https://openrouter.ai/api/v1/chat/completions",
-    "LlmApiKey": "",
-    "LlmModel": "google/gemini-3-flash-preview",
-    "LlmTemperature": 0.2,
-    "LlmReasoningEffort": "low",
-    "LlmLogIncludeSecrets": false,
+    "ApiProfileId": "default",
     "SourceMaxChars": 800
   }
 }

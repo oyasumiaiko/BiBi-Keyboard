@@ -15,7 +15,7 @@ internal sealed class DialogContextManager
     private readonly DialogContextSummarizer _summarizer;
     private readonly SemaphoreSlim _gate = new(1, 1);
 
-    public DialogContextManager(DialogContextConfig cfg)
+    public DialogContextManager(DialogContextConfig cfg, ApiProfile? profile)
     {
         _cfg = cfg;
         var path = Path.Combine(
@@ -24,7 +24,7 @@ internal sealed class DialogContextManager
             "dialog_context.json"
         );
         _store = new DialogContextStore(path);
-        _summarizer = new DialogContextSummarizer(cfg);
+        _summarizer = new DialogContextSummarizer(cfg, profile);
     }
 
     public string? GetDialogContext(string key)

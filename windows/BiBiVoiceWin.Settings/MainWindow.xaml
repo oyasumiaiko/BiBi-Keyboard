@@ -34,6 +34,7 @@
                     <controls:NavigationViewItem Content="常用" Tag="general" Icon="Home" />
                     <controls:NavigationViewItem Content="录音" Tag="record" Icon="Microphone" />
                     <controls:NavigationViewItem Content="语音识别" Tag="asr" Icon="ContactInfo" />
+                    <controls:NavigationViewItem Content="API" Tag="api" Icon="Globe" />
                     <controls:NavigationViewItem Content="上下文" Tag="context" Icon="Document" />
                     <controls:NavigationViewItem Content="校对" Tag="proofread" Icon="Edit" />
                     <controls:NavigationViewItem Content="高级" Tag="advanced" Icon="Setting" />
@@ -114,6 +115,38 @@
                         </StackPanel>
                     </ScrollViewer>
 
+                    <ScrollViewer x:Name="PageApi"
+                                  Visibility="Collapsed"
+                                  VerticalScrollBarVisibility="Auto"
+                                  VerticalScrollMode="Enabled"
+                                  IsVerticalScrollChainingEnabled="True"
+                                  IsVerticalRailEnabled="True"
+                                  IsScrollInertiaEnabled="True">
+                        <StackPanel Spacing="6" Margin="12,8,12,12">
+                            <TextBlock Text="API 配置" Style="{StaticResource SectionHeaderTextStyle}" />
+                            <Button Content="新增 API 配置" Click="AddApiProfile_Click" />
+
+                            <ItemsControl ItemsSource="{Binding ApiProfiles}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Spacing="6" Margin="0,6,0,12">
+                                            <TextBox Header="名称" Text="{Binding Name, Mode=TwoWay}" />
+                                            <TextBox Header="ID（用于绑定）" Text="{Binding Id, Mode=TwoWay}" />
+                                            <TextBox Header="Endpoint" Text="{Binding Endpoint, Mode=TwoWay}" />
+                                            <TextBox Header="API Key" Text="{Binding ApiKey, Mode=TwoWay}" />
+                                            <TextBox Header="Model" Text="{Binding Model, Mode=TwoWay}" />
+                                            <NumberBox Header="Temperature" Value="{Binding Temperature, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                                            <TextBox Header="推理努力程度（low/medium/high）" Text="{Binding ReasoningEffort, Mode=TwoWay}" />
+                                            <ToggleSwitch Header="记录密钥与上下文到日志（危险）" IsOn="{Binding LogIncludeSecrets, Mode=TwoWay}" />
+                                            <Button Content="删除此 API 配置" Click="RemoveApiProfile_Click" />
+                                            <Rectangle Height="1" Fill="{ThemeResource CardBorderBrush}" Margin="0,6,0,0" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </ScrollViewer>
+
                     <ScrollViewer x:Name="PageContext"
                                   Visibility="Collapsed"
                                   VerticalScrollBarVisibility="Auto"
@@ -124,20 +157,15 @@
                         <StackPanel Spacing="6" Margin="12,8,12,12">
                             <TextBlock Text="对话上下文摘要" Style="{StaticResource SectionHeaderTextStyle}" />
                             <ToggleSwitch Header="启用对话上下文摘要（用于 dialog_ctx）" IsOn="{Binding DialogEnabled, Mode=TwoWay}" />
+                            <ComboBox Header="使用的 API 配置"
+                                      ItemsSource="{Binding ApiProfiles}"
+                                      DisplayMemberPath="Name"
+                                      SelectedValuePath="Id"
+                                      SelectedValue="{Binding DialogApiProfileId, Mode=TwoWay}" />
                             <NumberBox Header="摘要输入上限（字符）" Value="{Binding DialogSourceMaxChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
                             <NumberBox Header="触发摘要最小长度（字符）" Value="{Binding DialogMinUpdateChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
                             <NumberBox Header="摘要最大长度（字符）" Value="{Binding DialogMaxSummaryChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
                             <NumberBox Header="摘要过期时间（分钟）" Value="{Binding DialogTtlMinutes, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
-
-                            <Rectangle Height="1" Fill="{ThemeResource CardBorderBrush}" Margin="0,6,0,6" />
-
-                            <TextBlock Text="摘要 LLM" Style="{StaticResource SectionHeaderTextStyle}" />
-                            <TextBox Header="LLM Endpoint" Text="{Binding DialogLlmEndpoint, Mode=TwoWay}" />
-                            <TextBox Header="LLM API Key" Text="{Binding DialogLlmApiKey, Mode=TwoWay}" />
-                            <TextBox Header="LLM Model" Text="{Binding DialogLlmModel, Mode=TwoWay}" />
-                            <NumberBox Header="Temperature" Value="{Binding DialogLlmTemperature, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
-                            <TextBox Header="推理努力程度（low/medium/high）" Text="{Binding DialogLlmReasoningEffort, Mode=TwoWay}" />
-                            <ToggleSwitch Header="记录密钥与上下文到日志（危险）" IsOn="{Binding DialogLlmLogIncludeSecrets, Mode=TwoWay}" />
                         </StackPanel>
                     </ScrollViewer>
 
@@ -151,17 +179,12 @@
                         <StackPanel Spacing="6" Margin="12,8,12,12">
                             <TextBlock Text="输入校对" Style="{StaticResource SectionHeaderTextStyle}" />
                             <ToggleSwitch Header="启用语音校对（输入完成后自动修正）" IsOn="{Binding ProofreadEnabled, Mode=TwoWay}" />
+                            <ComboBox Header="使用的 API 配置"
+                                      ItemsSource="{Binding ApiProfiles}"
+                                      DisplayMemberPath="Name"
+                                      SelectedValuePath="Id"
+                                      SelectedValue="{Binding ProofreadApiProfileId, Mode=TwoWay}" />
                             <NumberBox Header="校对输入上限（字符）" Value="{Binding ProofreadSourceMaxChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
-
-                            <Rectangle Height="1" Fill="{ThemeResource CardBorderBrush}" Margin="0,6,0,6" />
-
-                            <TextBlock Text="校对 LLM" Style="{StaticResource SectionHeaderTextStyle}" />
-                            <TextBox Header="LLM Endpoint" Text="{Binding ProofreadLlmEndpoint, Mode=TwoWay}" />
-                            <TextBox Header="LLM API Key" Text="{Binding ProofreadLlmApiKey, Mode=TwoWay}" />
-                            <TextBox Header="LLM Model" Text="{Binding ProofreadLlmModel, Mode=TwoWay}" />
-                            <NumberBox Header="Temperature" Value="{Binding ProofreadLlmTemperature, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
-                            <TextBox Header="推理努力程度（low/medium/high）" Text="{Binding ProofreadLlmReasoningEffort, Mode=TwoWay}" />
-                            <ToggleSwitch Header="记录密钥与上下文到日志（危险）" IsOn="{Binding ProofreadLlmLogIncludeSecrets, Mode=TwoWay}" />
                         </StackPanel>
                     </ScrollViewer>
 

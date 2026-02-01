@@ -7,17 +7,25 @@ namespace BiBiVoiceWin;
 internal sealed class DialogContextSummarizer
 {
     private readonly DialogContextConfig _cfg;
-    private readonly LlmChatClient _client;
+    private readonly LlmChatClient? _client;
 
-    public DialogContextSummarizer(DialogContextConfig cfg)
+    public DialogContextSummarizer(DialogContextConfig cfg, ApiProfile? profile)
     {
         _cfg = cfg;
-        _client = new LlmChatClient(cfg, "上下文");
+        if (profile is not null)
+        {
+            _client = new LlmChatClient(profile, "上下文");
+        }
     }
 
     public async Task<string?> SummarizeAsync(string? previousSummary, string finalText, CancellationToken ct)
     {
         if (!_cfg.Enabled) return null;
+        if (_client is null)
+        {
+            AppLogger.Status("上下文", "API 配置缺失，已跳过");
+            return null;
+        }
 
         var input = finalText.Trim();
         if (input.Length <= 0) return null;

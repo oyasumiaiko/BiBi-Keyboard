@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 
 namespace BiBiVoiceWin;
@@ -21,6 +23,10 @@ public sealed class AppConfig
     public int TranscribeWatchdogSeconds { get; init; } = 15;
 
     public VolcConfig Volc { get; init; } = new();
+    public List<ApiProfile> ApiProfiles { get; init; } = new()
+    {
+        ApiProfile.CreateDefault()
+    };
     public DialogContextConfig DialogContext { get; init; } = new();
     public ProofreadConfig Proofread { get; init; } = new();
 
@@ -56,33 +62,8 @@ public sealed class AppConfig
             throw new InvalidOperationException($"无法解析配置文件：{configPath}");
         }
 
-        // 兼容旧配置：如果没有 Proofread 段，则尝试读取 DialogContext.ProofreadEnabled。
-        if (TryReadLegacyProofreadEnabled(content, out var legacyEnabled))
-        {
-            config = new AppConfig
-            {
-                Hotkey = config.Hotkey,
-                InsertMode = config.InsertMode,
-                AppendSpace = config.AppendSpace,
-                HoldToTalkEnabled = config.HoldToTalkEnabled,
-                HoldToTalkKey = config.HoldToTalkKey,
-                HoldToTalkMinHoldMs = config.HoldToTalkMinHoldMs,
-                TargetSampleRate = config.TargetSampleRate,
-                MaxRecordSeconds = config.MaxRecordSeconds,
-                AutoStopEnabled = config.AutoStopEnabled,
-                AutoStopSilenceMs = config.AutoStopSilenceMs,
-                AutoStopThresholdDb = config.AutoStopThresholdDb,
-                TranscribeWatchdogSeconds = config.TranscribeWatchdogSeconds,
-                Volc = config.Volc,
-                DialogContext = config.DialogContext,
-                Proofread = new ProofreadConfig
-                {
-                    Enabled = legacyEnabled
-                }
-            };
-        }
-
-        return (config, configPath, false);
+        var normalized = NormalizeConfig(config, content);
+        return (normalized, configPath, false);
     }
 
     public static void Save(AppConfig config, string path)
@@ -93,27 +74,13 @@ public sealed class AppConfig
         File.WriteAllText(path, json);
     }
 
-    /// <summary>
-    /// 兼容旧配置：如果未单独填写校对配置，则回退使用对话上下文的 LLM 参数。
-    /// </summary>
-    public ProofreadConfig ResolveProofreadConfig()
+    public ApiProfile? ResolveApiProfile(string? id)
     {
-        var proofread = Proofread ?? new ProofreadConfig();
-        var dialog = DialogContext ?? new DialogContextConfig();
-
-        return new ProofreadConfig
-        {
-            Enabled = proofread.Enabled,
-            LlmEndpoint = string.IsNullOrWhiteSpace(proofread.LlmEndpoint) ? dialog.LlmEndpoint : proofread.LlmEndpoint,
-            LlmApiKey = string.IsNullOrWhiteSpace(proofread.LlmApiKey) ? dialog.LlmApiKey : proofread.LlmApiKey,
-            LlmModel = string.IsNullOrWhiteSpace(proofread.LlmModel) ? dialog.LlmModel : proofread.LlmModel,
-            LlmTemperature = proofread.LlmTemperature,
-            LlmReasoningEffort = string.IsNullOrWhiteSpace(proofread.LlmReasoningEffort)
-                ? dialog.LlmReasoningEffort
-                : proofread.LlmReasoningEffort,
-            LlmLogIncludeSecrets = proofread.LlmLogIncludeSecrets,
-            SourceMaxChars = proofread.SourceMaxChars > 0 ? proofread.SourceMaxChars : dialog.SourceMaxChars
-        };
+        if (ApiProfiles is null || ApiProfiles.Count == 0) return null;
+        if (string.IsNullOrWhiteSpace(id)) return ApiProfiles[0];
+        var trimmed = id.Trim();
+        return ApiProfiles.FirstOrDefault(p => string.Equals(p.Id, trimmed, StringComparison.OrdinalIgnoreCase))
+               ?? ApiProfiles[0];
     }
 
     private static AppConfig CreateExample()
@@ -146,15 +113,14 @@ public sealed class AppConfig
                 Language = "",
                 DebugLogIncludeSecrets = false
             },
+            ApiProfiles = new List<ApiProfile>
+            {
+                ApiProfile.CreateDefault()
+            },
             DialogContext = new DialogContextConfig
             {
                 Enabled = false,
-                LlmEndpoint = "https://openrouter.ai/api/v1/chat/completions",
-                LlmApiKey = "",
-                LlmModel = "google/gemini-3-flash-preview",
-                LlmTemperature = 0.2f,
-                LlmReasoningEffort = "low",
-                LlmLogIncludeSecrets = false,
+                ApiProfileId = "default",
                 SourceMaxChars = 800,
                 MinUpdateChars = 8,
                 MaxSummaryChars = 200,
@@ -163,12 +129,7 @@ public sealed class AppConfig
             Proofread = new ProofreadConfig
             {
                 Enabled = true,
-                LlmEndpoint = "https://openrouter.ai/api/v1/chat/completions",
-                LlmApiKey = "",
-                LlmModel = "google/gemini-3-flash-preview",
-                LlmTemperature = 0.2f,
-                LlmReasoningEffort = "low",
-                LlmLogIncludeSecrets = false,
+                ApiProfileId = "default",
                 SourceMaxChars = 800
             }
         };
@@ -181,6 +142,121 @@ public sealed class AppConfig
         AllowTrailingCommas = true,
         WriteIndented = true
     };
+
+    private static AppConfig NormalizeConfig(AppConfig config, string json)
+    {
+        var hasProfilesInJson = TryHasProperty(json, "ApiProfiles");
+        var profiles = config.ApiProfiles ?? new List<ApiProfile>();
+        if (!hasProfilesInJson || profiles.Count == 0)
+        {
+            profiles = new List<ApiProfile>
+            {
+                ReadLegacyProfile(json) ?? ApiProfile.CreateDefault()
+            };
+        }
+
+        var defaultProfileId = profiles[0].Id;
+        var dialogCfg = config.DialogContext ?? new DialogContextConfig();
+        var proofreadCfg = config.Proofread ?? new ProofreadConfig();
+        var dialogApiId = string.IsNullOrWhiteSpace(dialogCfg.ApiProfileId)
+            ? defaultProfileId
+            : dialogCfg.ApiProfileId;
+
+        var proofreadEnabled = proofreadCfg.Enabled;
+        if (TryReadLegacyProofreadEnabled(json, out var legacyEnabled))
+        {
+            proofreadEnabled = legacyEnabled;
+        }
+
+        var proofreadApiId = string.IsNullOrWhiteSpace(proofreadCfg.ApiProfileId)
+            ? dialogApiId
+            : proofreadCfg.ApiProfileId;
+
+        return new AppConfig
+        {
+            Hotkey = config.Hotkey,
+            InsertMode = config.InsertMode,
+            AppendSpace = config.AppendSpace,
+            HoldToTalkEnabled = config.HoldToTalkEnabled,
+            HoldToTalkKey = config.HoldToTalkKey,
+            HoldToTalkMinHoldMs = config.HoldToTalkMinHoldMs,
+            TargetSampleRate = config.TargetSampleRate,
+            MaxRecordSeconds = config.MaxRecordSeconds,
+            AutoStopEnabled = config.AutoStopEnabled,
+            AutoStopSilenceMs = config.AutoStopSilenceMs,
+            AutoStopThresholdDb = config.AutoStopThresholdDb,
+            TranscribeWatchdogSeconds = config.TranscribeWatchdogSeconds,
+            Volc = config.Volc,
+            ApiProfiles = profiles,
+            DialogContext = new DialogContextConfig
+            {
+                Enabled = dialogCfg.Enabled,
+                ApiProfileId = dialogApiId,
+                SourceMaxChars = dialogCfg.SourceMaxChars,
+                MinUpdateChars = dialogCfg.MinUpdateChars,
+                MaxSummaryChars = dialogCfg.MaxSummaryChars,
+                TtlMinutes = dialogCfg.TtlMinutes
+            },
+            Proofread = new ProofreadConfig
+            {
+                Enabled = proofreadEnabled,
+                ApiProfileId = proofreadApiId,
+                SourceMaxChars = proofreadCfg.SourceMaxChars
+            }
+        };
+    }
+
+    private static bool TryHasProperty(string json, string name)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            return doc.RootElement.TryGetProperty(name, out _);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static ApiProfile? ReadLegacyProfile(string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("DialogContext", out var dialog)) return null;
+
+            var endpoint = dialog.TryGetProperty("LlmEndpoint", out var v) ? v.GetString() : null;
+            var apiKey = dialog.TryGetProperty("LlmApiKey", out v) ? v.GetString() : null;
+            var model = dialog.TryGetProperty("LlmModel", out v) ? v.GetString() : null;
+            var temp = dialog.TryGetProperty("LlmTemperature", out v) ? v.GetSingle() : 0.2f;
+            var effort = dialog.TryGetProperty("LlmReasoningEffort", out v) ? v.GetString() : "low";
+            var logSecrets = dialog.TryGetProperty("LlmLogIncludeSecrets", out v) && v.ValueKind == JsonValueKind.True;
+
+            if (string.IsNullOrWhiteSpace(endpoint)
+                && string.IsNullOrWhiteSpace(apiKey)
+                && string.IsNullOrWhiteSpace(model))
+            {
+                return null;
+            }
+
+            return new ApiProfile
+            {
+                Id = "default",
+                Name = "默认",
+                Endpoint = endpoint ?? "",
+                ApiKey = apiKey ?? "",
+                Model = model ?? "",
+                Temperature = temp,
+                ReasoningEffort = string.IsNullOrWhiteSpace(effort) ? "low" : effort.Trim(),
+                LogIncludeSecrets = logSecrets
+            };
+        }
+        catch
+        {
+            return null;
+        }
+    }
 
     private static bool TryReadLegacyProofreadEnabled(string json, out bool enabled)
     {
@@ -217,15 +293,44 @@ public sealed class VolcConfig
     public bool DebugLogIncludeSecrets { get; init; } = false;
 }
 
-public sealed class DialogContextConfig : ILlmConfig
+public sealed class ApiProfile : ILlmConfig
+{
+    public string Id { get; init; } = "default";
+    public string Name { get; init; } = "默认";
+    public string Endpoint { get; init; } = "https://openrouter.ai/api/v1/chat/completions";
+    public string ApiKey { get; init; } = "";
+    public string Model { get; init; } = "google/gemini-3-flash-preview";
+    public float Temperature { get; init; } = 0.2f;
+    public string ReasoningEffort { get; init; } = "low";
+    public bool LogIncludeSecrets { get; init; } = false;
+
+    public string LlmEndpoint => Endpoint;
+    public string LlmApiKey => ApiKey;
+    public string LlmModel => Model;
+    public float LlmTemperature => Temperature;
+    public string LlmReasoningEffort => ReasoningEffort;
+    public bool LlmLogIncludeSecrets => LogIncludeSecrets;
+
+    public static ApiProfile CreateDefault()
+    {
+        return new ApiProfile
+        {
+            Id = "default",
+            Name = "默认",
+            Endpoint = "https://openrouter.ai/api/v1/chat/completions",
+            ApiKey = "",
+            Model = "google/gemini-3-flash-preview",
+            Temperature = 0.2f,
+            ReasoningEffort = "low",
+            LogIncludeSecrets = false
+        };
+    }
+}
+
+public sealed class DialogContextConfig
 {
     public bool Enabled { get; init; } = false;
-    public string LlmEndpoint { get; init; } = "https://openrouter.ai/api/v1/chat/completions";
-    public string LlmApiKey { get; init; } = "";
-    public string LlmModel { get; init; } = "google/gemini-3-flash-preview";
-    public float LlmTemperature { get; init; } = 0.2f;
-    public string LlmReasoningEffort { get; init; } = "low";
-    public bool LlmLogIncludeSecrets { get; init; } = false;
+    public string ApiProfileId { get; init; } = "default";
 
     // 单次输入给 LLM 的最大字符数（防止超长文本拖慢）
     public int SourceMaxChars { get; init; } = 800;
@@ -238,15 +343,9 @@ public sealed class DialogContextConfig : ILlmConfig
 }
 
 public sealed class ProofreadConfig
-    : ILlmConfig
 {
     public bool Enabled { get; init; } = true;
-    public string LlmEndpoint { get; init; } = "https://openrouter.ai/api/v1/chat/completions";
-    public string LlmApiKey { get; init; } = "";
-    public string LlmModel { get; init; } = "google/gemini-3-flash-preview";
-    public float LlmTemperature { get; init; } = 0.2f;
-    public string LlmReasoningEffort { get; init; } = "low";
-    public bool LlmLogIncludeSecrets { get; init; } = false;
+    public string ApiProfileId { get; init; } = "default";
 
     // 单次输入给 LLM 的最大字符数（防止超长文本拖慢）
     public int SourceMaxChars { get; init; } = 800;

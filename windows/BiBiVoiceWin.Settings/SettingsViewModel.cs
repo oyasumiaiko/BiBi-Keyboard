@@ -1,4 +1,7 @@
+using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using BiBiVoiceWin;
 
@@ -35,25 +38,15 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     private bool _volcDebugLogIncludeSecrets;
 
     private bool _dialogEnabled;
-    private string _dialogLlmEndpoint = "https://openrouter.ai/api/v1/chat/completions";
-    private string _dialogLlmApiKey = "";
-    private string _dialogLlmModel = "google/gemini-3-flash-preview";
-    private double _dialogLlmTemperature = 0.2;
-    private string _dialogLlmReasoningEffort = "low";
-    private bool _dialogLlmLogIncludeSecrets;
     private double _dialogSourceMaxChars = 800;
     private double _dialogMinUpdateChars = 8;
     private double _dialogMaxSummaryChars = 200;
     private double _dialogTtlMinutes = 240;
 
     private bool _proofreadEnabled = true;
-    private string _proofreadLlmEndpoint = "https://openrouter.ai/api/v1/chat/completions";
-    private string _proofreadLlmApiKey = "";
-    private string _proofreadLlmModel = "google/gemini-3-flash-preview";
-    private double _proofreadLlmTemperature = 0.2;
-    private string _proofreadLlmReasoningEffort = "low";
-    private bool _proofreadLlmLogIncludeSecrets;
     private double _proofreadSourceMaxChars = 800;
+    private string _dialogApiProfileId = "default";
+    private string _proofreadApiProfileId = "default";
     private bool _isLoading;
     private System.Threading.Timer? _autoSaveTimer;
 
@@ -66,7 +59,11 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
             if (_isLoading) return;
             ScheduleAutoSave();
         };
+
+        ApiProfiles.CollectionChanged += OnApiProfilesChanged;
     }
+
+    public ObservableCollection<ApiProfileItem> ApiProfiles { get; } = new();
 
     public string ConfigPath
     {
@@ -218,41 +215,12 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         set => SetField(ref _dialogEnabled, value);
     }
 
-    public string DialogLlmEndpoint
+    public string DialogApiProfileId
     {
-        get => _dialogLlmEndpoint;
-        set => SetField(ref _dialogLlmEndpoint, value);
+        get => _dialogApiProfileId;
+        set => SetField(ref _dialogApiProfileId, value);
     }
 
-    public string DialogLlmApiKey
-    {
-        get => _dialogLlmApiKey;
-        set => SetField(ref _dialogLlmApiKey, value);
-    }
-
-    public string DialogLlmModel
-    {
-        get => _dialogLlmModel;
-        set => SetField(ref _dialogLlmModel, value);
-    }
-
-    public double DialogLlmTemperature
-    {
-        get => _dialogLlmTemperature;
-        set => SetField(ref _dialogLlmTemperature, value);
-    }
-
-    public string DialogLlmReasoningEffort
-    {
-        get => _dialogLlmReasoningEffort;
-        set => SetField(ref _dialogLlmReasoningEffort, value);
-    }
-
-    public bool DialogLlmLogIncludeSecrets
-    {
-        get => _dialogLlmLogIncludeSecrets;
-        set => SetField(ref _dialogLlmLogIncludeSecrets, value);
-    }
 
     public double DialogSourceMaxChars
     {
@@ -284,41 +252,12 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         set => SetField(ref _proofreadEnabled, value);
     }
 
-    public string ProofreadLlmEndpoint
+    public string ProofreadApiProfileId
     {
-        get => _proofreadLlmEndpoint;
-        set => SetField(ref _proofreadLlmEndpoint, value);
+        get => _proofreadApiProfileId;
+        set => SetField(ref _proofreadApiProfileId, value);
     }
 
-    public string ProofreadLlmApiKey
-    {
-        get => _proofreadLlmApiKey;
-        set => SetField(ref _proofreadLlmApiKey, value);
-    }
-
-    public string ProofreadLlmModel
-    {
-        get => _proofreadLlmModel;
-        set => SetField(ref _proofreadLlmModel, value);
-    }
-
-    public double ProofreadLlmTemperature
-    {
-        get => _proofreadLlmTemperature;
-        set => SetField(ref _proofreadLlmTemperature, value);
-    }
-
-    public string ProofreadLlmReasoningEffort
-    {
-        get => _proofreadLlmReasoningEffort;
-        set => SetField(ref _proofreadLlmReasoningEffort, value);
-    }
-
-    public bool ProofreadLlmLogIncludeSecrets
-    {
-        get => _proofreadLlmLogIncludeSecrets;
-        set => SetField(ref _proofreadLlmLogIncludeSecrets, value);
-    }
 
     public double ProofreadSourceMaxChars
     {
@@ -357,28 +296,25 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         VolcLanguage = cfg.Volc.Language;
         VolcDebugLogIncludeSecrets = cfg.Volc.DebugLogIncludeSecrets;
 
+        ApiProfiles.Clear();
+        var profileList = cfg.ApiProfiles is not null && cfg.ApiProfiles.Count > 0
+            ? cfg.ApiProfiles
+            : new List<ApiProfile> { ApiProfile.CreateDefault() };
+        foreach (var profile in profileList)
+        {
+            ApiProfiles.Add(new ApiProfileItem(profile));
+        }
+
         DialogEnabled = cfg.DialogContext.Enabled;
-        DialogLlmEndpoint = cfg.DialogContext.LlmEndpoint;
-        DialogLlmApiKey = cfg.DialogContext.LlmApiKey;
-        DialogLlmModel = cfg.DialogContext.LlmModel;
-        DialogLlmTemperature = cfg.DialogContext.LlmTemperature;
-        DialogLlmReasoningEffort = cfg.DialogContext.LlmReasoningEffort;
-        DialogLlmLogIncludeSecrets = cfg.DialogContext.LlmLogIncludeSecrets;
+        DialogApiProfileId = ResolveProfileId(cfg.DialogContext.ApiProfileId, profileList);
         DialogSourceMaxChars = cfg.DialogContext.SourceMaxChars;
         DialogMinUpdateChars = cfg.DialogContext.MinUpdateChars;
         DialogMaxSummaryChars = cfg.DialogContext.MaxSummaryChars;
         DialogTtlMinutes = cfg.DialogContext.TtlMinutes;
 
-        // 兼容旧配置：若未配置校对，先用对话摘要的 LLM 设置做兜底展示
-        var proofread = cfg.ResolveProofreadConfig();
-        ProofreadEnabled = proofread.Enabled;
-        ProofreadLlmEndpoint = proofread.LlmEndpoint;
-        ProofreadLlmApiKey = proofread.LlmApiKey;
-        ProofreadLlmModel = proofread.LlmModel;
-        ProofreadLlmTemperature = proofread.LlmTemperature;
-        ProofreadLlmReasoningEffort = proofread.LlmReasoningEffort;
-        ProofreadLlmLogIncludeSecrets = proofread.LlmLogIncludeSecrets;
-        ProofreadSourceMaxChars = proofread.SourceMaxChars;
+        ProofreadEnabled = cfg.Proofread.Enabled;
+        ProofreadApiProfileId = ResolveProfileId(cfg.Proofread.ApiProfileId, profileList, DialogApiProfileId);
+        ProofreadSourceMaxChars = cfg.Proofread.SourceMaxChars;
         _isLoading = false;
     }
 
@@ -387,6 +323,15 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         error = "";
         try
         {
+            var profiles = ApiProfiles.Select(p => p.ToConfig()).ToList();
+            if (profiles.Count == 0)
+            {
+                profiles.Add(ApiProfile.CreateDefault());
+            }
+
+            var dialogProfileId = ResolveProfileId(DialogApiProfileId, profiles);
+            var proofreadProfileId = ResolveProfileId(ProofreadApiProfileId, profiles, dialogProfileId);
+
             var cfg = new AppConfig
             {
                 Hotkey = Hotkey.Trim(),
@@ -415,15 +360,11 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
                     Language = VolcLanguage.Trim(),
                     DebugLogIncludeSecrets = VolcDebugLogIncludeSecrets
                 },
+                ApiProfiles = profiles,
                 DialogContext = new DialogContextConfig
                 {
                     Enabled = DialogEnabled,
-                    LlmEndpoint = DialogLlmEndpoint.Trim(),
-                    LlmApiKey = DialogLlmApiKey.Trim(),
-                    LlmModel = DialogLlmModel.Trim(),
-                    LlmTemperature = (float)DialogLlmTemperature,
-                    LlmReasoningEffort = DialogLlmReasoningEffort.Trim(),
-                    LlmLogIncludeSecrets = DialogLlmLogIncludeSecrets,
+                    ApiProfileId = dialogProfileId,
                     SourceMaxChars = ToInt(DialogSourceMaxChars, 800),
                     MinUpdateChars = ToInt(DialogMinUpdateChars, 8),
                     MaxSummaryChars = ToInt(DialogMaxSummaryChars, 200),
@@ -432,12 +373,7 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
                 Proofread = new ProofreadConfig
                 {
                     Enabled = ProofreadEnabled,
-                    LlmEndpoint = ProofreadLlmEndpoint.Trim(),
-                    LlmApiKey = ProofreadLlmApiKey.Trim(),
-                    LlmModel = ProofreadLlmModel.Trim(),
-                    LlmTemperature = (float)ProofreadLlmTemperature,
-                    LlmReasoningEffort = ProofreadLlmReasoningEffort.Trim(),
-                    LlmLogIncludeSecrets = ProofreadLlmLogIncludeSecrets,
+                    ApiProfileId = proofreadProfileId,
                     SourceMaxChars = ToInt(ProofreadSourceMaxChars, 800)
                 }
             };
@@ -470,10 +406,80 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         }
     }
 
+    public void AddApiProfile()
+    {
+        var profile = new ApiProfileItem(ApiProfile.CreateDefault())
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            Name = $"API {ApiProfiles.Count + 1}"
+        };
+        ApiProfiles.Add(profile);
+    }
+
+    public void RemoveApiProfile(ApiProfileItem profile)
+    {
+        if (ApiProfiles.Count <= 1) return;
+        ApiProfiles.Remove(profile);
+
+        if (string.Equals(DialogApiProfileId, profile.Id, StringComparison.OrdinalIgnoreCase))
+        {
+            DialogApiProfileId = ApiProfiles[0].Id;
+        }
+        if (string.Equals(ProofreadApiProfileId, profile.Id, StringComparison.OrdinalIgnoreCase))
+        {
+            ProofreadApiProfileId = ApiProfiles[0].Id;
+        }
+    }
+
+    private void OnApiProfilesChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.OldItems is not null)
+        {
+            foreach (ApiProfileItem item in e.OldItems)
+            {
+                item.PropertyChanged -= OnApiProfileChanged;
+            }
+        }
+        if (e.NewItems is not null)
+        {
+            foreach (ApiProfileItem item in e.NewItems)
+            {
+                item.PropertyChanged += OnApiProfileChanged;
+            }
+        }
+
+        if (_isLoading) return;
+        ScheduleAutoSave();
+    }
+
+    private void OnApiProfileChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_isLoading) return;
+        ScheduleAutoSave();
+    }
+
     private static int ToInt(double value, int fallback)
     {
         if (double.IsNaN(value) || double.IsInfinity(value)) return fallback;
         return Math.Max(0, (int)Math.Round(value));
+    }
+
+    private static string ResolveProfileId(string? id, List<ApiProfile> profiles, string? fallback = null)
+    {
+        if (profiles.Count == 0) return "";
+        if (!string.IsNullOrWhiteSpace(id)
+            && profiles.Any(p => string.Equals(p.Id, id.Trim(), StringComparison.OrdinalIgnoreCase)))
+        {
+            return id!.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(fallback)
+            && profiles.Any(p => string.Equals(p.Id, fallback.Trim(), StringComparison.OrdinalIgnoreCase)))
+        {
+            return fallback!.Trim();
+        }
+
+        return profiles[0].Id;
     }
 
     private void SetField<T>(ref T field, T value, [CallerMemberName] string? name = null)

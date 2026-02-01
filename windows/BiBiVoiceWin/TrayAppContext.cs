@@ -713,8 +713,10 @@ public sealed class TrayAppContext : ApplicationContext
         // 这些组件依赖配置，需在热更新时重建
         _asr = new VolcStreamAsrClient(_cfg.Volc);
         _inserter = new TextInserter(InsertModeParser.ParseOrDefault(_cfg.InsertMode), _cfg.AppendSpace);
-        _dialogContext = new DialogContextManager(_cfg.DialogContext);
-        _proofreader = new InputProofreader(_cfg.ResolveProofreadConfig());
+        var dialogProfile = _cfg.ResolveApiProfile(_cfg.DialogContext.ApiProfileId);
+        var proofreadProfile = _cfg.ResolveApiProfile(_cfg.Proofread.ApiProfileId);
+        _dialogContext = new DialogContextManager(_cfg.DialogContext, dialogProfile);
+        _proofreader = new InputProofreader(_cfg.Proofread, proofreadProfile);
 
         RebuildInputHooks();
         InitConfigWatcher(_configPath);

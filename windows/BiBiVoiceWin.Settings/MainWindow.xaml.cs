@@ -67,9 +67,23 @@ public sealed partial class MainWindow : Window
         PageGeneral.Visibility = tag == "general" ? Visibility.Visible : Visibility.Collapsed;
         PageRecord.Visibility = tag == "record" ? Visibility.Visible : Visibility.Collapsed;
         PageAsr.Visibility = tag == "asr" ? Visibility.Visible : Visibility.Collapsed;
+        PageApi.Visibility = tag == "api" ? Visibility.Visible : Visibility.Collapsed;
         PageContext.Visibility = tag == "context" ? Visibility.Visible : Visibility.Collapsed;
         PageProofread.Visibility = tag == "proofread" ? Visibility.Visible : Visibility.Collapsed;
         PageAdvanced.Visibility = tag == "advanced" ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void AddApiProfile_Click(object sender, RoutedEventArgs e)
+    {
+        _viewModel.AddApiProfile();
+    }
+
+    private void RemoveApiProfile_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: ApiProfileItem item })
+        {
+            _viewModel.RemoveApiProfile(item);
+        }
     }
 
     private void Root_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
