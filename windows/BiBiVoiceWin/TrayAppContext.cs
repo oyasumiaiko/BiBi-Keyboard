@@ -129,7 +129,7 @@ public sealed class TrayAppContext : ApplicationContext
             Text = "BiBiVoiceWin",
             ContextMenuStrip = _menu
         };
-        _tray.DoubleClick += async (_, _) => await ToggleAsync();
+        _tray.DoubleClick += (_, _) => OpenSettingsWindow();
         UpdateTrayIcon();
 
         // UI 定时器：把“录音线程的自动停止事件”拉回 UI 线程处理
@@ -237,6 +237,86 @@ public sealed class TrayAppContext : ApplicationContext
             UpdateTrayIcon();
             LogStatus("启动录音失败", ex.Message);
         }
+    }
+
+    private void OpenSettingsWindow()
+    {
+        try
+        {
+            var exePath = ResolveSettingsExePath();
+            if (string.IsNullOrWhiteSpace(exePath))
+            {
+                LogStatus("设置", "未找到设置程序，请先构建 BiBiVoiceWin.Settings。");
+                return;
+            }
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = exePath,
+                UseShellExecute = true
+            };
+            Process.Start(psi);
+        }
+        catch (Exception ex)
+        {
+            LogStatus("设置", $"启动失败: {ex.Message}");
+        }
+    }
+
+    private static string? ResolveSettingsExePath()
+    {
+        var baseDir = AppContext.BaseDirectory;
+        var direct = Path.Combine(baseDir, "BiBiVoiceWin.Settings.exe");
+        if (File.Exists(direct)) return direct;
+
+        var parentDir = Directory.GetParent(baseDir)?.FullName;
+        if (!string.IsNullOrWhiteSpace(parentDir))
+        {
+            var sibling = Path.Combine(parentDir, "BiBiVoiceWin.Settings.exe");
+            if (File.Exists(sibling)) return sibling;
+        }
+
+        var biBiVoiceWinDir = FindAncestorDirectory(baseDir, "BiBiVoiceWin");
+        if (biBiVoiceWinDir is not null)
+        {
+            var windowsDir = biBiVoiceWinDir.Parent;
+            if (windowsDir is not null)
+            {
+                var settingsRoot = new DirectoryInfo(Path.Combine(windowsDir.FullName, "BiBiVoiceWin.Settings"));
+                if (settingsRoot.Exists)
+                {
+                    var candidates = new[]
+                    {
+                        Path.Combine(settingsRoot.FullName, "bin", "Debug", "net8.0-windows10.0.19041.0", "BiBiVoiceWin.Settings.exe"),
+                        Path.Combine(settingsRoot.FullName, "bin", "Debug", "net8.0-windows", "BiBiVoiceWin.Settings.exe"),
+                        Path.Combine(settingsRoot.FullName, "bin", "Release", "net8.0-windows10.0.19041.0", "BiBiVoiceWin.Settings.exe"),
+                        Path.Combine(settingsRoot.FullName, "bin", "Release", "net8.0-windows", "BiBiVoiceWin.Settings.exe")
+                    };
+
+                    foreach (var candidate in candidates)
+                    {
+                        if (File.Exists(candidate)) return candidate;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static DirectoryInfo? FindAncestorDirectory(string startPath, string targetName)
+    {
+        var current = new DirectoryInfo(startPath);
+        while (current != null)
+        {
+            if (string.Equals(current.Name, targetName, StringComparison.OrdinalIgnoreCase))
+            {
+                return current;
+            }
+            current = current.Parent;
+        }
+
+        return null;
     }
 
     private async Task BeginStopAndFinalizeAsync(AutoStopReason? reason)
