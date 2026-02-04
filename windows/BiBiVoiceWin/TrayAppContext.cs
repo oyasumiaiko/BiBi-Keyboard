@@ -699,6 +699,11 @@ public sealed class TrayAppContext : ApplicationContext
             if (!_streamingStarted)
             {
                 if (_preRollChunks is null) return;
+                if (_streamPaused && db < _streamPauseThresholdDb)
+                {
+                    // 暂停流式期间只缓存“有声”片段，避免把长时间静音一起补发。
+                    return;
+                }
                 _preRollChunks.Enqueue(chunk);
                 _preRollBytes += chunk.Length;
                 while (_preRollBytes > _preRollMaxBytes && _preRollChunks.Count > 0)
