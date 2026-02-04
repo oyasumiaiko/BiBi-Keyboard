@@ -11,6 +11,9 @@
   "AutoStopSilenceMs": 1200,
   "AutoStopThresholdDb": -35,
   "TranscribeWatchdogSeconds": 15,
+  "StreamPauseEnabled": true,
+  "StreamPauseSilenceMs": 2000,
+  "StreamPauseThresholdDb": -35,
   "Volc": {
     "Endpoint": "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async",
     "AppKey": "",

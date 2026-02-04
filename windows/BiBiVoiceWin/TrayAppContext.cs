@@ -72,6 +72,13 @@ public sealed class TrayAppContext : ApplicationContext
     private const int ReloadDelayMs = 300;
     private bool _finalReceived;
     private bool _restartAfterFinalize;
+    private bool _streamPauseEnabled;
+    private int _streamPauseSilenceMs;
+    private double _streamPauseThresholdDb;
+    private DateTimeOffset _streamSilenceSince = DateTimeOffset.MinValue;
+    private bool _streamPaused;
+    private bool _streamFinalizing;
+    private bool _resumeAfterFinalize;
 
     // 按住说话
     private Keys _holdKey = Keys.Space;
@@ -196,6 +203,7 @@ public sealed class TrayAppContext : ApplicationContext
         {
             LogStatus("上下文", $"已加载（长度 {_dialogContextText.Length}）");
         }
+        ResetStreamPauseState();
         _state = AppState.Recording;
 
         _toggleItem.Text = "停止";
@@ -388,6 +396,7 @@ public sealed class TrayAppContext : ApplicationContext
             CleanupStreamingSession();
             ResetPreRollBuffer();
             _preExistingInputText = null;
+            ResetStreamPauseState();
             _state = AppState.Idle;
             _transcribeStartedAt = DateTimeOffset.MinValue;
             _toggleItem.Text = "开始录音";
@@ -430,6 +439,7 @@ public sealed class TrayAppContext : ApplicationContext
             CleanupStreamingSession();
             ResetPreRollBuffer();
             _preExistingInputText = null;
+            ResetStreamPauseState();
             TryApplyPendingReload();
         }
     }
@@ -502,6 +512,130 @@ public sealed class TrayAppContext : ApplicationContext
         }
     }
 
+    private void HandleStreamPauseResume(double db)
+    {
+        if (!_streamPauseEnabled) return;
+        if (_state != AppState.Recording) return;
+
+        // 录音尚未进入流式（如按住说话未触发），不参与暂停逻辑，避免误触发。
+        if (!_streamingStarted && !_streamPaused && !_streamFinalizing) return;
+
+        var now = DateTimeOffset.UtcNow;
+        if (db >= _streamPauseThresholdDb)
+        {
+            _streamSilenceSince = DateTimeOffset.MinValue;
+            if (_streamPaused)
+            {
+                if (_streamFinalizing)
+                {
+                    _resumeAfterFinalize = true;
+                }
+                else
+                {
+                    ResumeStreamingFromPause();
+                }
+            }
+            return;
+        }
+
+        if (_streamSilenceSince == DateTimeOffset.MinValue)
+        {
+            _streamSilenceSince = now;
+            return;
+        }
+
+        if (!_streamPaused && !_streamFinalizing && _streamingStarted &&
+            (now - _streamSilenceSince).TotalMilliseconds >= _streamPauseSilenceMs)
+        {
+            PauseStreamingForSilence();
+        }
+    }
+
+    private void PauseStreamingForSilence()
+    {
+        if (_streamPaused || _streamFinalizing) return;
+        if (!_streamingStarted) return;
+
+        _streamPaused = true;
+        _streamFinalizing = true;
+        _resumeAfterFinalize = false;
+        _streamSilenceSince = DateTimeOffset.MinValue;
+
+        LogStatus("流式暂停", $"静音超过 {_streamPauseSilenceMs}ms，已暂停发送以节省 API");
+        InitPreRollBuffer(_recordSampleRate, _holdMinMs);
+        lock (_pcmLock)
+        {
+            _streamingStarted = false;
+        }
+        CompleteAudioStream();
+
+        _ = Task.Run(FinalizePausedStreamAsync);
+        UpdateTrayIcon();
+    }
+
+    private async Task FinalizePausedStreamAsync()
+    {
+        var token = _streamCts?.Token ?? CancellationToken.None;
+        string finalText = "";
+        try
+        {
+            finalText = await AwaitFinalResultAsync(token).ConfigureAwait(false);
+            if (!string.IsNullOrWhiteSpace(finalText))
+            {
+                if (_streamSession is not null)
+                {
+                    await _streamSession.ApplyFinalAsync(finalText, token).ConfigureAwait(false);
+                }
+
+                _ = Task.Run(async () =>
+                {
+                    try { await _dialogContext.UpdateFromFinalAsync(_dialogContextKey, finalText, CancellationToken.None); }
+                    catch { }
+                });
+
+                await TryProofreadAndApplyAsync(finalText, token).ConfigureAwait(false);
+            }
+            else
+            {
+                LogStatus("识别完成", "最终结果为空");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            CancelStreamingSession();
+        }
+        catch (Exception ex)
+        {
+            CancelStreamingSession();
+            LogStatus("识别失败", ex.Message);
+        }
+        finally
+        {
+            PostToUiAction(() =>
+            {
+                CleanupStreamingSession();
+                _streamFinalizing = false;
+                if (_resumeAfterFinalize)
+                {
+                    _resumeAfterFinalize = false;
+                    ResumeStreamingFromPause();
+                }
+            });
+        }
+    }
+
+    private void ResumeStreamingFromPause()
+    {
+        if (!_streamPaused) return;
+        if (_streamFinalizing) return;
+
+        _streamPaused = false;
+        _streamSilenceSince = DateTimeOffset.MinValue;
+        LogStatus("流式恢复", "检测到声音，已重新开启");
+        StartStreamingSession(_recordSampleRate);
+        FlushPreRollToChannel();
+    }
+
     private void CompleteAudioStream()
     {
         try { _pcmChannel?.Writer.TryComplete(); } catch { }
@@ -558,6 +692,8 @@ public sealed class TrayAppContext : ApplicationContext
     private void OnPcm16Chunk(byte[] chunk)
     {
         if (_state != AppState.Recording) return;
+        var db = EstimatePcm16Dbfs(chunk);
+        HandleStreamPauseResume(db);
         lock (_pcmLock)
         {
             if (!_streamingStarted)
@@ -578,7 +714,6 @@ public sealed class TrayAppContext : ApplicationContext
             if (!_pcmChunkLogged)
             {
                 _pcmChunkLogged = true;
-                var db = EstimatePcm16Dbfs(chunk);
                 LogStatus("音频流", $"已开始接收 PCM 分片（首包 {chunk.Length} bytes，约 {db:0.0} dBFS）");
             }
             writer.TryWrite(chunk);
@@ -720,7 +855,7 @@ public sealed class TrayAppContext : ApplicationContext
     private void UpdateTrayIcon()
     {
         var micOn = _state == AppState.Recording;
-        var streamOn = _asrTask is not null || _state == AppState.Transcribing;
+        var streamOn = (_asrTask is not null || _state == AppState.Transcribing) && !_streamPaused;
         try
         {
             var icon = TrayIconRenderer.Create(micOn, streamOn);
@@ -739,6 +874,14 @@ public sealed class TrayAppContext : ApplicationContext
         _holdKeyDown = false;
         _holdTriggered = false;
         StopHoldTimer();
+    }
+
+    private void ResetStreamPauseState()
+    {
+        _streamPaused = false;
+        _streamFinalizing = false;
+        _resumeAfterFinalize = false;
+        _streamSilenceSince = DateTimeOffset.MinValue;
     }
 
     private bool TryRestartAfterFinalize()
@@ -774,6 +917,7 @@ public sealed class TrayAppContext : ApplicationContext
         CancelStreamingSession();
         CleanupStreamingSession();
         ResetPreRollBuffer();
+        ResetStreamPauseState();
         _state = AppState.Idle;
         _transcribeStartedAt = DateTimeOffset.MinValue;
         _toggleItem.Text = "开始录音";
@@ -788,6 +932,9 @@ public sealed class TrayAppContext : ApplicationContext
         _cfg = cfg;
         _configPath = configPath;
         _holdMinMs = Math.Max(80, _cfg.HoldToTalkMinHoldMs);
+        _streamPauseEnabled = _cfg.StreamPauseEnabled;
+        _streamPauseSilenceMs = Math.Max(200, _cfg.StreamPauseSilenceMs);
+        _streamPauseThresholdDb = _cfg.StreamPauseThresholdDb;
         UpdateWatchdogTimeout();
 
         // 这些组件依赖配置，需在热更新时重建

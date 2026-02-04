@@ -21,6 +21,9 @@ public sealed class AppConfig
     public int AutoStopSilenceMs { get; init; } = 1200;
     public double AutoStopThresholdDb { get; init; } = -35;
     public int TranscribeWatchdogSeconds { get; init; } = 15;
+    public bool StreamPauseEnabled { get; init; } = true;
+    public int StreamPauseSilenceMs { get; init; } = 2000;
+    public double StreamPauseThresholdDb { get; init; } = -35;
 
     public VolcConfig Volc { get; init; } = new();
     public List<ApiProfile> ApiProfiles { get; init; } = new()
@@ -99,6 +102,9 @@ public sealed class AppConfig
             AutoStopSilenceMs = 1200,
             AutoStopThresholdDb = -35,
             TranscribeWatchdogSeconds = 15,
+            StreamPauseEnabled = true,
+            StreamPauseSilenceMs = 2000,
+            StreamPauseThresholdDb = -35,
             Volc = new VolcConfig
             {
                 Endpoint = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async",
@@ -186,6 +192,9 @@ public sealed class AppConfig
             AutoStopSilenceMs = config.AutoStopSilenceMs,
             AutoStopThresholdDb = config.AutoStopThresholdDb,
             TranscribeWatchdogSeconds = config.TranscribeWatchdogSeconds,
+            StreamPauseEnabled = config.StreamPauseEnabled,
+            StreamPauseSilenceMs = config.StreamPauseSilenceMs,
+            StreamPauseThresholdDb = config.StreamPauseThresholdDb,
             Volc = config.Volc,
             ApiProfiles = profiles,
             DialogContext = new DialogContextConfig

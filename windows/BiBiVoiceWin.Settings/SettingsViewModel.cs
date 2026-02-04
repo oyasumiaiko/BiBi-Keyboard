@@ -24,6 +24,9 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     private double _autoStopSilenceMs = 1200;
     private double _autoStopThresholdDb = -35;
     private double _transcribeWatchdogSeconds = 15;
+    private bool _streamPauseEnabled = true;
+    private double _streamPauseSilenceMs = 2000;
+    private double _streamPauseThresholdDb = -35;
 
     private string _volcEndpoint = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async";
     private string _volcAppKey = "";
@@ -135,6 +138,24 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     {
         get => _autoStopThresholdDb;
         set => SetField(ref _autoStopThresholdDb, value);
+    }
+
+    public bool StreamPauseEnabled
+    {
+        get => _streamPauseEnabled;
+        set => SetField(ref _streamPauseEnabled, value);
+    }
+
+    public double StreamPauseSilenceMs
+    {
+        get => _streamPauseSilenceMs;
+        set => SetField(ref _streamPauseSilenceMs, value);
+    }
+
+    public double StreamPauseThresholdDb
+    {
+        get => _streamPauseThresholdDb;
+        set => SetField(ref _streamPauseThresholdDb, value);
     }
 
     public double TranscribeWatchdogSeconds
@@ -282,6 +303,9 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         AutoStopEnabled = cfg.AutoStopEnabled;
         AutoStopSilenceMs = cfg.AutoStopSilenceMs;
         AutoStopThresholdDb = cfg.AutoStopThresholdDb;
+        StreamPauseEnabled = cfg.StreamPauseEnabled;
+        StreamPauseSilenceMs = cfg.StreamPauseSilenceMs;
+        StreamPauseThresholdDb = cfg.StreamPauseThresholdDb;
         TranscribeWatchdogSeconds = cfg.TranscribeWatchdogSeconds;
 
         VolcEndpoint = cfg.Volc.Endpoint;
@@ -345,6 +369,9 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
                 AutoStopEnabled = AutoStopEnabled,
                 AutoStopSilenceMs = ToInt(AutoStopSilenceMs, 1200),
                 AutoStopThresholdDb = AutoStopThresholdDb,
+                StreamPauseEnabled = StreamPauseEnabled,
+                StreamPauseSilenceMs = ToInt(StreamPauseSilenceMs, 2000),
+                StreamPauseThresholdDb = StreamPauseThresholdDb,
                 TranscribeWatchdogSeconds = ToInt(TranscribeWatchdogSeconds, 15),
                 Volc = new VolcConfig
                 {

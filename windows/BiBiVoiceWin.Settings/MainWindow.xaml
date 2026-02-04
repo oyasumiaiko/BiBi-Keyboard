@@ -77,6 +77,13 @@
                             <ToggleSwitch Header="启用静音判停" IsOn="{Binding AutoStopEnabled, Mode=TwoWay}" />
                             <NumberBox Header="静音判停时长（毫秒）" Value="{Binding AutoStopSilenceMs, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
                             <NumberBox Header="静音阈值（dB）" Value="{Binding AutoStopThresholdDb, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+
+                            <Rectangle Height="1" Fill="{ThemeResource CardBorderBrush}" Margin="0,6,0,6" />
+
+                            <TextBlock Text="静音暂停流" Style="{StaticResource SectionHeaderTextStyle}" />
+                            <ToggleSwitch Header="启用静音暂停流（省 API）" IsOn="{Binding StreamPauseEnabled, Mode=TwoWay}" />
+                            <NumberBox Header="暂停触发时长（毫秒）" Value="{Binding StreamPauseSilenceMs, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                            <NumberBox Header="暂停阈值（dB）" Value="{Binding StreamPauseThresholdDb, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
                         </StackPanel>
                     </ScrollViewer>
 
