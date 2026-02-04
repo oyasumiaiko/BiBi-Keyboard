@@ -70,6 +70,7 @@ public sealed class TrayAppContext : ApplicationContext
     private const int MinTranscribeWatchdogSeconds = 5;
     private const int MaxTranscribeWatchdogSeconds = 120;
     private const int ReloadDelayMs = 300;
+    private const int StreamResumeLeadMs = 500;
     private bool _finalReceived;
     private bool _restartAfterFinalize;
     private bool _streamPauseEnabled;
@@ -699,14 +700,15 @@ public sealed class TrayAppContext : ApplicationContext
             if (!_streamingStarted)
             {
                 if (_preRollChunks is null) return;
-                if (_streamPaused && db < _streamPauseThresholdDb)
+                var maxBytes = _preRollMaxBytes;
+                if (_streamPaused)
                 {
-                    // 暂停流式期间只缓存“有声”片段，避免把长时间静音一起补发。
-                    return;
+                    // 暂停流式期间仅保留固定时长的“前导缓存”，避免静音被完整补发。
+                    maxBytes = Math.Max(1, GetStreamResumeLeadBytes());
                 }
                 _preRollChunks.Enqueue(chunk);
                 _preRollBytes += chunk.Length;
-                while (_preRollBytes > _preRollMaxBytes && _preRollChunks.Count > 0)
+                while (_preRollBytes > maxBytes && _preRollChunks.Count > 0)
                 {
                     var drop = _preRollChunks.Dequeue();
                     _preRollBytes -= drop.Length;
@@ -723,6 +725,13 @@ public sealed class TrayAppContext : ApplicationContext
             }
             writer.TryWrite(chunk);
         }
+    }
+
+    private int GetStreamResumeLeadBytes()
+    {
+        var rate = _recordSampleRate > 0 ? _recordSampleRate : 16000;
+        var bytesPerSecond = Math.Max(1, rate * 2);
+        return (int)Math.Ceiling(bytesPerSecond * (StreamResumeLeadMs / 1000.0));
     }
 
     private void OnAsrResult(string text, bool isFinal)
