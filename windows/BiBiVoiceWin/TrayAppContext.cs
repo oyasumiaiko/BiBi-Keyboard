@@ -53,7 +53,6 @@ public sealed class TrayAppContext : ApplicationContext
     private TextInserter.StreamingSession? _streamSession;
     private string _dialogContextKey = "";
     private string? _dialogContextText;
-    private string? _preExistingInputText;
 
     // 录音线程触发的“建议停止”信号，通过 UI Timer 拉回到 UI 线程执行。
     private int _pendingAutoStopReason = 0;
@@ -187,15 +186,6 @@ public sealed class TrayAppContext : ApplicationContext
         _finalReceived = false;
         _restartAfterFinalize = false;
         _targetWindow = Win32.GetForegroundWindow();
-        _preExistingInputText = null;
-        if (_cfg.Proofread.Enabled)
-        {
-            _preExistingInputText = InputContextReader.TryReadFocusedText();
-            if (!string.IsNullOrWhiteSpace(_preExistingInputText))
-            {
-                LogStatus("校对上下文", $"已读取 {_preExistingInputText.Length} 字");
-            }
-        }
         var title = Win32.GetWindowTitle(_targetWindow);
         LogStatus("目标窗口", $"0x{_targetWindow.ToInt64():X} {title}");
         _dialogContextKey = DialogContextManager.BuildWindowKey(_targetWindow);
@@ -396,7 +386,6 @@ public sealed class TrayAppContext : ApplicationContext
         {
             CleanupStreamingSession();
             ResetPreRollBuffer();
-            _preExistingInputText = null;
             ResetStreamPauseState();
             _state = AppState.Idle;
             _transcribeStartedAt = DateTimeOffset.MinValue;
@@ -439,7 +428,6 @@ public sealed class TrayAppContext : ApplicationContext
             CancelStreamingSession();
             CleanupStreamingSession();
             ResetPreRollBuffer();
-            _preExistingInputText = null;
             ResetStreamPauseState();
             TryApplyPendingReload();
         }
@@ -676,17 +664,10 @@ public sealed class TrayAppContext : ApplicationContext
         if (_streamSession is null) return;
         if (string.IsNullOrWhiteSpace(finalText)) return;
 
-        var ctx = _preExistingInputText;
-        if (string.IsNullOrWhiteSpace(ctx))
-        {
-            // 若无法读取输入框文本，回退到已有的对话摘要（可选，避免完全无上下文）。
-            ctx = _dialogContextText;
-        }
-
-        var corrected = await _proofreader.ProofreadAsync(ctx, finalText, ct).ConfigureAwait(false);
+        var corrected = await _proofreader.ProofreadAsync(null, finalText, ct).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(corrected)) return;
 
-        LogStatus("校对完成", $"修正后长度 {corrected.Length}");
+        LogStatus("后处理完成", $"修正后长度 {corrected.Length}");
         await _streamSession.ApplyCorrectionAsync(corrected, ct).ConfigureAwait(false);
     }
 

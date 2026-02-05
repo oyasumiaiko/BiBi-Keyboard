@@ -3,7 +3,7 @@ using System.Windows.Automation;
 namespace BiBiVoiceWin;
 
 /// <summary>
-/// 尝试读取当前焦点输入控件的文本，用于提供“输入上下文”给校对模型。
+/// 尝试读取当前焦点输入控件的文本，作为可选上下文来源（当前后处理流程未使用）。
 /// 说明：不同应用对 UIA 支持不一致，失败时直接返回 null。
 /// </summary>
 internal static class InputContextReader
