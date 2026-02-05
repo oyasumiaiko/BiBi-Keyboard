@@ -5,6 +5,8 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- 屏蔽已知的 WindowsBase 版本冲突警告（MSB3277） -->
+    <NoWarn>$(NoWarn);MSB3277</NoWarn>
     <AssemblyName>BiBiVoiceWin</AssemblyName>
     <RootNamespace>BiBiVoiceWin</RootNamespace>
   </PropertyGroup>
