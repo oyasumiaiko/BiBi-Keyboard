@@ -35,7 +35,7 @@
                     <controls:NavigationViewItem Content="录音" Tag="record" Icon="Microphone" />
                     <controls:NavigationViewItem Content="语音识别" Tag="asr" Icon="ContactInfo" />
                     <controls:NavigationViewItem Content="API" Tag="api" Icon="Globe" />
-                    <controls:NavigationViewItem Content="上下文摘要" Tag="context" Icon="Document" />
+                    <controls:NavigationViewItem Content="上下文参数" Tag="context" Icon="Document" />
                     <controls:NavigationViewItem Content="后处理" Tag="proofread" Icon="Edit" />
                     <controls:NavigationViewItem Content="高级" Tag="advanced" Icon="Setting" />
                 </controls:NavigationView.MenuItems>
@@ -173,18 +173,18 @@
                                   IsVerticalRailEnabled="True"
                                   IsScrollInertiaEnabled="True">
                         <StackPanel Spacing="6" Margin="12,8,12,12">
-                            <TextBlock Text="对话上下文摘要（dialog_ctx）" Style="{StaticResource SectionHeaderTextStyle}" />
-                            <ToggleSwitch Header="启用对话上下文摘要（用于 dialog_ctx）" IsOn="{Binding DialogEnabled, Mode=TwoWay}" />
-                            <TextBlock Text="识别完成后会将文本摘要写入“上下文”，后续请求携带以提升语境准确率。" TextWrapping="Wrap" Opacity="0.7" />
+                            <TextBlock Text="对话上下文参数（dialog_ctx）" Style="{StaticResource SectionHeaderTextStyle}" />
+                            <ToggleSwitch Header="启用对话上下文参数生成（用于 dialog_ctx）" IsOn="{Binding DialogEnabled, Mode=TwoWay}" />
+                            <TextBlock Text="识别完成后会生成结构化上下文参数（摘要/关键词/纠错/格式），后续请求携带以提升语境准确率。" TextWrapping="Wrap" Opacity="0.7" />
                             <ComboBox Header="使用的 API 配置"
                                       ItemsSource="{Binding ApiProfiles}"
                                       DisplayMemberPath="Name"
                                       SelectedValuePath="Id"
                                       SelectedValue="{Binding DialogApiProfileId, Mode=TwoWay}" />
-                            <NumberBox Header="摘要输入上限（字符）" Value="{Binding DialogSourceMaxChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
-                            <NumberBox Header="触发摘要最小长度（字符）" Value="{Binding DialogMinUpdateChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
-                            <NumberBox Header="摘要最大长度（字符）" Value="{Binding DialogMaxSummaryChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
-                            <NumberBox Header="摘要过期时间（分钟）" Value="{Binding DialogTtlMinutes, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                            <NumberBox Header="上下文输入上限（字符）" Value="{Binding DialogSourceMaxChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                            <NumberBox Header="触发生成最小长度（字符）" Value="{Binding DialogMinUpdateChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                            <NumberBox Header="上下文输出上限（字符）" Value="{Binding DialogMaxSummaryChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                            <NumberBox Header="上下文过期时间（分钟）" Value="{Binding DialogTtlMinutes, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
                             <TextBlock Text="小于最小长度时不更新；过期后不再注入 dialog_ctx。" TextWrapping="Wrap" Opacity="0.7" />
                         </StackPanel>
                     </ScrollViewer>

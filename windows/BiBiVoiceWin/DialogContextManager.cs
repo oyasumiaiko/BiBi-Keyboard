@@ -4,8 +4,8 @@ namespace BiBiVoiceWin;
 
 /// <summary>
 /// 对话上下文管理器：
-/// - 按窗口维度维护“领域摘要”
-/// - 使用 LLM 将最终识别结果压缩成摘要
+/// - 按窗口维度维护“上下文参数串”
+/// - 使用 LLM 将最终识别结果压缩成结构化上下文
 /// - 在下一次识别时注入 dialog_ctx
 /// </summary>
 internal sealed class DialogContextManager

@@ -43,7 +43,7 @@
 - 默认启用火山“语义顺滑”（`EnableDdc`）与“二遍识别”（`EnableNonstream`）以提升最终准确率；如需更原始结果可在配置中关闭。
 - 如需启用 VAD 判停分句，可设置 `EnableVad=true`，并使用推荐参数 `VadEndWindowSizeMs=800`、`VadForceToSpeechTimeMs=1000`。
 - LLM 相关配置已统一抽象为 `ApiProfiles`，可在设置中新增多个配置并复用。
-- 如需给火山 `dialog_ctx` 提供上下文，可开启 `DialogContext.Enabled` 并选择 `DialogContext.ApiProfileId`。
+- 如需给火山 `dialog_ctx` 提供结构化上下文参数，可开启 `DialogContext.Enabled` 并选择 `DialogContext.ApiProfileId`。
 - 如需“输入完成后自动后处理”，可开启 `Proofread.Enabled` 并选择 `Proofread.ApiProfileId`。程序会将最终识别结果发送给 LLM 进行后处理，并在返回后自动回写。
 
 ## 设置界面（WinUI）

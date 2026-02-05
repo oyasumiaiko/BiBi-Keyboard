@@ -532,14 +532,17 @@ public sealed class VolcStreamAsrClient
 
         if (!string.IsNullOrWhiteSpace(dialogContext))
         {
-            request["context"] = new Dictionary<string, object?>
+            request["corpus"] = new Dictionary<string, object?>
             {
-                ["context_type"] = "dialog_ctx",
-                ["context_data"] = new[]
+                ["context"] = new Dictionary<string, object?>
                 {
-                    new Dictionary<string, object?>
+                    ["context_type"] = "dialog_ctx",
+                    ["context_data"] = new[]
                     {
-                        ["text"] = dialogContext
+                        new Dictionary<string, object?>
+                        {
+                            ["text"] = dialogContext
+                        }
                     }
                 }
             };

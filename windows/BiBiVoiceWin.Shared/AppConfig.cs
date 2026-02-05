@@ -343,9 +343,9 @@ public sealed class DialogContextConfig
 
     // 单次输入给 LLM 的最大字符数（防止超长文本拖慢）
     public int SourceMaxChars { get; init; } = 800;
-    // 短文本不做摘要更新，避免噪声
+    // 短文本不生成上下文，避免噪声
     public int MinUpdateChars { get; init; } = 8;
-    // 对话上下文摘要最大长度
+    // 对话上下文参数最大长度（dialog_ctx）
     public int MaxSummaryChars { get; init; } = 200;
     // 上下文过期时间（分钟）
     public int TtlMinutes { get; init; } = 240;
