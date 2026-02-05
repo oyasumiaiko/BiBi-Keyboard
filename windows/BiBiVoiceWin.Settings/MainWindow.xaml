@@ -35,8 +35,8 @@
                     <controls:NavigationViewItem Content="录音" Tag="record" Icon="Microphone" />
                     <controls:NavigationViewItem Content="语音识别" Tag="asr" Icon="ContactInfo" />
                     <controls:NavigationViewItem Content="API" Tag="api" Icon="Globe" />
-                    <controls:NavigationViewItem Content="上下文" Tag="context" Icon="Document" />
-                    <controls:NavigationViewItem Content="校对" Tag="proofread" Icon="Edit" />
+                    <controls:NavigationViewItem Content="上下文摘要" Tag="context" Icon="Document" />
+                    <controls:NavigationViewItem Content="后处理" Tag="proofread" Icon="Edit" />
                     <controls:NavigationViewItem Content="高级" Tag="advanced" Icon="Setting" />
                 </controls:NavigationView.MenuItems>
                 <Grid Padding="0">
@@ -49,13 +49,15 @@
                         <StackPanel Spacing="6" Margin="12,8,12,12">
                             <TextBlock Text="按住说话" Style="{StaticResource SectionHeaderTextStyle}" />
                             <ToggleSwitch Header="启用按住说话" IsOn="{Binding HoldToTalkEnabled, Mode=TwoWay}" />
-                            <TextBox Header="按住说话按键" Text="{Binding HoldToTalkKey, Mode=TwoWay}" />
-                            <NumberBox Header="长按阈值（毫秒）" Value="{Binding HoldToTalkMinHoldMs, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                            <TextBlock Text="说明：长按指定按键开始录音，松开即收尾；仅支持单键。启用后下方“单击热键”不会生效。" TextWrapping="Wrap" Opacity="0.7" />
+                            <TextBox Header="按住说话按键（单键）" Text="{Binding HoldToTalkKey, Mode=TwoWay}" />
+                            <NumberBox Header="长按阈值（毫秒，超过即开始录音）" Value="{Binding HoldToTalkMinHoldMs, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
 
                             <Rectangle Height="1" Fill="{ThemeResource CardBorderBrush}" Margin="0,6,0,6" />
 
                             <TextBlock Text="单击热键" Style="{StaticResource SectionHeaderTextStyle}" />
                             <TextBox Header="单击热键（仅在关闭按住说话时生效）" Text="{Binding Hotkey, Mode=TwoWay}" />
+                            <TextBlock Text="支持组合键，例如 Ctrl+Alt+Space。" TextWrapping="Wrap" Opacity="0.7" />
                         </StackPanel>
                     </ScrollViewer>
 
@@ -75,13 +77,16 @@
 
                             <TextBlock Text="静音判停" Style="{StaticResource SectionHeaderTextStyle}" />
                             <ToggleSwitch Header="启用静音判停" IsOn="{Binding AutoStopEnabled, Mode=TwoWay}" />
+                            <TextBlock Text="仅在检测到说话后才会开始计时；按住说话时会忽略静音判停。" TextWrapping="Wrap" Opacity="0.7" />
                             <NumberBox Header="静音判停时长（毫秒）" Value="{Binding AutoStopSilenceMs, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
                             <NumberBox Header="静音阈值（dB）" Value="{Binding AutoStopThresholdDb, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                            <TextBlock Text="阈值越接近 0 越敏感；建议 -35 左右。" TextWrapping="Wrap" Opacity="0.7" />
 
                             <Rectangle Height="1" Fill="{ThemeResource CardBorderBrush}" Margin="0,6,0,6" />
 
                             <TextBlock Text="静音暂停流" Style="{StaticResource SectionHeaderTextStyle}" />
                             <ToggleSwitch Header="启用静音暂停流（省 API）" IsOn="{Binding StreamPauseEnabled, Mode=TwoWay}" />
+                            <TextBlock Text="静音时暂停发送到 ASR 以节省费用；录音仍持续，声音恢复会自动补发少量前导缓存。" TextWrapping="Wrap" Opacity="0.7" />
                             <NumberBox Header="暂停触发时长（毫秒）" Value="{Binding StreamPauseSilenceMs, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
                             <NumberBox Header="暂停阈值（dB）" Value="{Binding StreamPauseThresholdDb, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
                         </StackPanel>
@@ -99,19 +104,23 @@
                             <TextBox Header="AppKey（App ID）" Text="{Binding VolcAppKey, Mode=TwoWay}" />
                             <TextBox Header="AccessKey（Access Token）" Text="{Binding VolcAccessKey, Mode=TwoWay}" />
                             <TextBox Header="ResourceId" Text="{Binding VolcResourceId, Mode=TwoWay}" />
+                            <TextBlock Text="这些信息来自火山引擎控制台的语音识别服务。" TextWrapping="Wrap" Opacity="0.7" />
 
                             <Rectangle Height="1" Fill="{ThemeResource CardBorderBrush}" Margin="0,6,0,6" />
 
                             <TextBlock Text="推荐开关" Style="{StaticResource SectionHeaderTextStyle}" />
                             <ToggleSwitch Header="开启语义顺滑（推荐）" IsOn="{Binding VolcEnableDdc, Mode=TwoWay}" />
                             <ToggleSwitch Header="开启二遍识别（推荐）" IsOn="{Binding VolcEnableNonstream, Mode=TwoWay}" />
+                            <TextBlock Text="二遍识别会在收尾阶段再识别一次，准确率更高但延迟略增。" TextWrapping="Wrap" Opacity="0.7" />
 
                             <Rectangle Height="1" Fill="{ThemeResource CardBorderBrush}" Margin="0,6,0,6" />
 
                             <TextBlock Text="识别高级" Style="{StaticResource SectionHeaderTextStyle}" />
-                            <TextBox Header="Endpoint" Text="{Binding VolcEndpoint, Mode=TwoWay}" />
+                            <TextBox Header="Endpoint（WebSocket）" Text="{Binding VolcEndpoint, Mode=TwoWay}" />
                             <TextBox Header="Language（可选）" Text="{Binding VolcLanguage, Mode=TwoWay}" />
+                            <TextBlock Text="留空表示自动识别语言。" TextWrapping="Wrap" Opacity="0.7" />
                             <ToggleSwitch Header="启用 VAD 分句" IsOn="{Binding VolcEnableVad, Mode=TwoWay}" />
+                            <TextBlock Text="启用后将由服务端进行分句与判停，适合长语音。" TextWrapping="Wrap" Opacity="0.7" />
                             <NumberBox Header="VAD 结束窗口（毫秒）" Value="{Binding VolcVadEndWindowSizeMs, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
                             <NumberBox Header="VAD 强制语音阈值（毫秒）" Value="{Binding VolcVadForceToSpeechTimeMs, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
 
@@ -132,6 +141,7 @@
                         <StackPanel Spacing="6" Margin="12,8,12,12">
                             <TextBlock Text="API 配置" Style="{StaticResource SectionHeaderTextStyle}" />
                             <Button Content="新增 API 配置" Click="AddApiProfile_Click" />
+                            <TextBlock Text="用于后处理/对话摘要调用，可配置多个并在不同功能中复用。" TextWrapping="Wrap" Opacity="0.7" />
 
                             <ItemsControl ItemsSource="{Binding ApiProfiles}">
                                 <ItemsControl.ItemTemplate>
@@ -143,7 +153,8 @@
                                             <TextBox Header="API Key" Text="{Binding ApiKey, Mode=TwoWay}" />
                                             <TextBox Header="Model" Text="{Binding Model, Mode=TwoWay}" />
                                             <NumberBox Header="Temperature" Value="{Binding Temperature, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
-                                            <TextBox Header="推理努力程度（low/medium/high）" Text="{Binding ReasoningEffort, Mode=TwoWay}" />
+                                            <TextBox Header="推理努力程度（none/low/medium/high）" Text="{Binding ReasoningEffort, Mode=TwoWay}" />
+                                            <TextBlock Text="仅部分模型/端点支持；不确定时填 low 或 none。" TextWrapping="Wrap" Opacity="0.7" />
                                             <ToggleSwitch Header="记录密钥与上下文到日志（危险）" IsOn="{Binding LogIncludeSecrets, Mode=TwoWay}" />
                                             <Button Content="删除此 API 配置" Click="RemoveApiProfile_Click" />
                                             <Rectangle Height="1" Fill="{ThemeResource CardBorderBrush}" Margin="0,6,0,0" />
@@ -162,8 +173,9 @@
                                   IsVerticalRailEnabled="True"
                                   IsScrollInertiaEnabled="True">
                         <StackPanel Spacing="6" Margin="12,8,12,12">
-                            <TextBlock Text="对话上下文摘要" Style="{StaticResource SectionHeaderTextStyle}" />
+                            <TextBlock Text="对话上下文摘要（dialog_ctx）" Style="{StaticResource SectionHeaderTextStyle}" />
                             <ToggleSwitch Header="启用对话上下文摘要（用于 dialog_ctx）" IsOn="{Binding DialogEnabled, Mode=TwoWay}" />
+                            <TextBlock Text="识别完成后会将文本摘要写入“上下文”，后续请求携带以提升语境准确率。" TextWrapping="Wrap" Opacity="0.7" />
                             <ComboBox Header="使用的 API 配置"
                                       ItemsSource="{Binding ApiProfiles}"
                                       DisplayMemberPath="Name"
@@ -173,6 +185,7 @@
                             <NumberBox Header="触发摘要最小长度（字符）" Value="{Binding DialogMinUpdateChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
                             <NumberBox Header="摘要最大长度（字符）" Value="{Binding DialogMaxSummaryChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
                             <NumberBox Header="摘要过期时间（分钟）" Value="{Binding DialogTtlMinutes, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                            <TextBlock Text="小于最小长度时不更新；过期后不再注入 dialog_ctx。" TextWrapping="Wrap" Opacity="0.7" />
                         </StackPanel>
                     </ScrollViewer>
 
@@ -184,14 +197,15 @@
                                   IsVerticalRailEnabled="True"
                                   IsScrollInertiaEnabled="True">
                         <StackPanel Spacing="6" Margin="12,8,12,12">
-                            <TextBlock Text="输入校对" Style="{StaticResource SectionHeaderTextStyle}" />
-                            <ToggleSwitch Header="启用语音校对（输入完成后自动修正）" IsOn="{Binding ProofreadEnabled, Mode=TwoWay}" />
+                            <TextBlock Text="语音后处理" Style="{StaticResource SectionHeaderTextStyle}" />
+                            <ToggleSwitch Header="启用后处理（识别完成后自动优化）" IsOn="{Binding ProofreadEnabled, Mode=TwoWay}" />
+                            <TextBlock Text="会把最终识别文本发送给 LLM 进行优化，返回后替换已输入内容；不读取输入框已有文本。" TextWrapping="Wrap" Opacity="0.7" />
                             <ComboBox Header="使用的 API 配置"
                                       ItemsSource="{Binding ApiProfiles}"
                                       DisplayMemberPath="Name"
                                       SelectedValuePath="Id"
                                       SelectedValue="{Binding ProofreadApiProfileId, Mode=TwoWay}" />
-                            <NumberBox Header="校对输入上限（字符）" Value="{Binding ProofreadSourceMaxChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                            <NumberBox Header="后处理输入上限（字符）" Value="{Binding ProofreadSourceMaxChars, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
                         </StackPanel>
                     </ScrollViewer>
 
@@ -216,11 +230,13 @@
                             <TextBlock Text="输入行为" Style="{StaticResource SectionHeaderTextStyle}" />
                             <TextBox Header="插入方式（目前仅支持 SendInput）" Text="{Binding InsertMode, Mode=TwoWay}" />
                             <ToggleSwitch Header="识别完成自动追加空格" IsOn="{Binding AppendSpace, Mode=TwoWay}" />
+                            <TextBlock Text="若某些软件输入失败，可尝试以管理员运行目标应用。" TextWrapping="Wrap" Opacity="0.7" />
 
                             <Rectangle Height="1" Fill="{ThemeResource CardBorderBrush}" Margin="0,6,0,6" />
 
                             <TextBlock Text="运行保护" Style="{StaticResource SectionHeaderTextStyle}" />
                             <NumberBox Header="收尾卡死自动重置（秒）" Value="{Binding TranscribeWatchdogSeconds, Mode=TwoWay}" SpinButtonPlacementMode="Hidden" />
+                            <TextBlock Text="超过该时间仍未收到最终结果时，会强制重置，避免托盘卡死。" TextWrapping="Wrap" Opacity="0.7" />
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>
